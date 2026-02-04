@@ -3420,27 +3420,28 @@ async function abrirDetalheTabela(codigo, fonte, versao, tipoRef) {
 
     const modalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
     
-    // Configura Cabeçalho
-    document.getElementById('modal-det-fonte').textContent = `${fonte} (Tab. ${versao})`;
-    document.getElementById('modal-det-fonte').className = 'badge bg-primary me-2';
-    document.getElementById('modal-det-cod').textContent = codigo;
-    
-    document.getElementById('modal-det-desc').textContent = "Carregando..."; 
-    document.getElementById('modal-det-preco').textContent = "";
-    document.getElementById('modal-det-unid').textContent = "";
+    // Configura Cabeçalho (Fixo no Header)
+    // O elemento 'modal-det-fonte' está no modal-header, então ele persiste.
+    const badgeFonte = document.getElementById('modal-det-fonte');
+    if(badgeFonte) {
+        badgeFonte.textContent = `${fonte} (Tab. ${versao})`;
+        badgeFonte.className = 'badge bg-primary me-2';
+    }
+
     const modalBody = modalEl.querySelector('.modal-body');
 
     // === LÓGICA DE DECISÃO ===
     
     // CASO 1: SEINFRA + VERSÃO 28 (Site Oficial Disponível)
-    // CORREÇÃO: Aceita '28' ou '028' para evitar erro de digitação/formato
     if (fonte === 'SEINFRA' && (versao === '28' || versao === '028')) { 
         const timestamp = Date.now();
-        // Garante que o tipoRef esteja em minúsculo (onerada/desonerada)
         const tipoRefUrl = tipoRef.toLowerCase(); 
         const urlSeinfra = `https://sin.seinfra.ce.gov.br/site-seinfra/siproce/${tipoRefUrl}/html/${codigo}.html?a=${timestamp}`;
 
         modalBody.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                 <h5 class="fw-bold text-dark mb-0">CÓDIGO: ${codigo}</h5>
+            </div>
             <div class="alert alert-light border small text-center mb-2">
                 <i class="bi bi-globe"></i> Visualização Web (Versão Vigente 028)
             </div>
@@ -3458,10 +3459,12 @@ async function abrirDetalheTabela(codigo, fonte, versao, tipoRef) {
     }
 
     // CASO 2: VERSÕES ANTIGAS (027, etc) -> Busca no Banco de Dados
+    // Recriamos a estrutura do body toda vez para evitar erros de elementos perdidos
     modalBody.innerHTML = `
         <div class="d-flex justify-content-between align-items-start mb-3 border-bottom pb-3">
             <div>
                 <h5 class="fw-bold text-dark mb-1" id="modal-det-desc-db">Carregando detalhes...</h5>
+                <div class="text-muted small">CÓDIGO: <strong class="text-dark">${codigo}</strong></div>
             </div>
             <div class="text-end">
                 <div class="small text-muted text-uppercase">Preço Unitário</div>
@@ -3497,9 +3500,14 @@ async function abrirDetalheTabela(codigo, fonte, versao, tipoRef) {
 
         if (dadosPai) {
             const valor = dadosPai.valor || dadosPai.preco || 0;
-            document.getElementById('modal-det-desc-db').textContent = dadosPai.descricao;
-            document.getElementById('modal-det-preco-db').textContent = parseFloat(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-            document.getElementById('modal-det-unid-db').textContent = `UN: ${dadosPai.unidade}`;
+            const elDesc = document.getElementById('modal-det-desc-db');
+            if(elDesc) elDesc.textContent = dadosPai.descricao;
+            
+            const elPreco = document.getElementById('modal-det-preco-db');
+            if(elPreco) elPreco.textContent = parseFloat(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            
+            const elUnid = document.getElementById('modal-det-unid-db');
+            if(elUnid) elUnid.textContent = `UN: ${dadosPai.unidade}`;
         }
 
         const { data: itens } = await sbClient
@@ -3512,25 +3520,26 @@ async function abrirDetalheTabela(codigo, fonte, versao, tipoRef) {
         const tbody = document.getElementById('modal-det-itens-db');
         
         if (!itens || itens.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">Insumos não cadastrados para esta versão no banco.</td></tr>';
+            if(tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">Insumos não cadastrados para esta versão no banco.</td></tr>';
             return;
         }
 
-        tbody.innerHTML = itens.map(i => {
-            return `
-            <tr>
-                <td class="small fw-bold text-muted">${i.tipo || 'INSUMO'}</td>
-                <td class="small">${i.codigo_item}</td>
-                <td class="small text-uppercase">${i.descricao_item}</td>
-                <td class="text-center small">${parseFloat(i.coeficiente).toLocaleString('pt-BR')}</td>
-                <td class="text-end small text-muted">${parseFloat(i.preco_unitario).toLocaleString('pt-BR', {minimumFractionDigits:2})}</td>
-                <td class="text-end small fw-bold">${parseFloat(i.valor_total).toLocaleString('pt-BR', {minimumFractionDigits:2})}</td>
-            </tr>`;
-        }).join('');
+        if(tbody) {
+            tbody.innerHTML = itens.map(i => {
+                return `
+                <tr>
+                    <td class="small fw-bold text-muted">${i.tipo || 'INSUMO'}</td>
+                    <td class="small">${i.codigo_item}</td>
+                    <td class="small text-uppercase">${i.descricao_item}</td>
+                    <td class="text-center small">${parseFloat(i.coeficiente).toLocaleString('pt-BR')}</td>
+                    <td class="text-end small text-muted">${parseFloat(i.preco_unitario).toLocaleString('pt-BR', {minimumFractionDigits:2})}</td>
+                    <td class="text-end small fw-bold">${parseFloat(i.valor_total).toLocaleString('pt-BR', {minimumFractionDigits:2})}</td>
+                </tr>`;
+            }).join('');
+        }
 
     } catch (err) {
         console.error("Erro DB:", err);
-        // Evita erro se o elemento não existir (caso o usuario tenha fechado rapido)
         const elErro = document.getElementById('modal-det-itens-db');
         if(elErro) elErro.innerHTML = `<tr><td colspan="6" class="text-danger text-center">Erro ao buscar no banco: ${err.message}</td></tr>`;
     }
