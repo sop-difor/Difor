@@ -7579,10 +7579,75 @@
                     bootstrap.Modal.getInstance(document.getElementById('modalExportarComposicao')).hide();
                 }
 
+                const formatarVersao = (texto) => {
+                    if (!texto || texto === '-') return '-';
+                    const txt = texto.toString().toUpperCase().trim();
+                    const mesesLista = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+                    const mesesMap = {
+                        'JANEIRO': 'Jan', 'FEVEREIRO': 'Fev', 'MARÇO': 'Mar', 'ABRIL': 'Abr',
+                        'MAIO': 'Mai', 'JUNHO': 'Jun', 'JULHO': 'Jul', 'AGOSTO': 'Ago',
+                        'SETEMBRO': 'Set', 'OUTUBRO': 'Out', 'NOVEMBRO': 'Nov', 'DEZEMBRO': 'Dez'
+                    };
+
+                    // 1. Tenta encontrar nome do mês (ex: "SETEMBRO de 2024")
+                    for (let mes in mesesMap) {
+                        if (txt.includes(mes)) {
+                            const anoMatch = txt.match(/\d{4}/);
+                            if (anoMatch) return `${mesesMap[mes]}/${anoMatch[0].substring(2)}`;
+                        }
+                    }
+
+                    // 2. Tenta parsear como data (ISO: 2024-09-20 ou BR: 20/09/2024)
+                    let d = null;
+                    if (txt.includes('-')) {
+                        const p = txt.split('-');
+                        if (p.length === 3) d = new Date(p[0], p[1] - 1, p[2]);
+                        else if (p.length === 2) d = new Date(p[0], p[1] - 1, 1); // YYYY-MM
+                    } else if (txt.includes('/')) {
+                        const p = txt.split('/');
+                        if (p.length === 3) d = new Date(p[2], p[1] - 1, p[0]);
+                        else if (p.length === 2) d = new Date(p[1], p[0] - 1, 1); // MM/YYYY
+                    }
+
+                    if (d && !isNaN(d.getTime())) {
+                        return `${mesesLista[d.getMonth()]}/${d.getFullYear().toString().substring(2)}`;
+                    }
+
+                    return texto;
+                };
+
+                const normalizarItemParaPDF = (item) => {
+                    const precoUnit = Number(item.preco_unitario || item.preco || 0);
+                    const coef = Number(item.coeficiente || 0);
+                    const total = Number(item.total || item.total_item || (precoUnit * coef)) || 0;
+                    return {
+                        origem: item.origem || item.fonte || '-',
+                        versao: formatarVersao(item.versao || item.retroativo?.dataIni || item.data_tabela || '-'),
+                        codigo: item.codigo_insumo || item.codigo || '-',
+                        descricao: item.descricao_insumo || item.descricao || '-',
+                        unidade: item.unidade || '-',
+                        coeficiente: coef,
+                        preco_unitario: precoUnit,
+                        total: total,
+                        grupo: item.tipo_grupo || item.grupo || 'MATERIAL',
+                        retroativo: item.retroativo || null // Importante para Memória de Cálculo
+                    };
+                };
+
                 // --------------------------------------------------------------
                 // FUNÇÃO GERAR PDF (Profissional) - Com Template SOP (pdf-lib)
                 // --------------------------------------------------------------
-                async function gerarPDF_Profissional(dados, options = {}) {
+                async function gerarPDF_Profissional(rawInput, options = {}) {
+                    // Normalizador de Entrada: Garante que dados próprios e SOP tenham a mesma raiz
+                    const dados = {
+                        codigo: rawInput?.codigo || rawInput?.meta?.codigo || 'S/C',
+                        descricao: rawInput?.descricao || rawInput?.meta?.descricao || 'SEM DESCRIÇÃO',
+                        unidade: rawInput?.unidade || rawInput?.meta?.unidade || '-',
+                        data_base: rawInput?.data_base || rawInput?.meta?.data_base || null,
+                        bdi: rawInput?.bdi || rawInput?.meta?.bdi || '0,00',
+                        desconto: rawInput?.desconto || rawInput?.meta?.desconto || '0,00',
+                        itens: rawInput?.itens || []
+                    };
                     // options: { output: 'save' | 'open' }
                     const mode = options.output || 'save';
                     const { jsPDF } = window.jspdf;
@@ -7661,15 +7726,29 @@
                     yPos += 8;
 
                     // --- TABELA ---
-                    const itensOrdenados = [...(dados.itens || [])].sort((a, b) => {
+                    const labelGrupos = { 'MAO_DE_OBRA': 'MÃO DE OBRA', 'MATERIAL': 'MATERIAL', 'EQUIPAMENTOS': 'EQUIPAMENTOS', 'SERVICO': 'SERVIÇO' };
+
+                    const formatarMoeda = (valor) => Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                    const formatarNumero = (valor) => Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+                    // Normalização
+                    const itensNormalizados = (dados.itens || []).map(item => normalizarItemParaPDF(item));
+
+                    // Cálculo Dinâmico de Subtotais para o Rodapé
+                    const subtotaisPorGrupo = itensNormalizados.reduce((acc, item) => {
+                        const grupo = labelGrupos[item.grupo] || (item.grupo || 'MATERIAL').replace(/_/g, ' ');
+                        acc[grupo] = (acc[grupo] || 0) + Number(item.total || 0);
+                        return acc;
+                    }, {});
+
+                    // Ordenação para exibição
+                    const itensOrdenados = [...itensNormalizados].sort((a, b) => {
                         const ordem = { 'MAO_DE_OBRA': 1, 'MATERIAL': 2, 'EQUIPAMENTOS': 3, 'SERVICO': 4 };
                         return (ordem[a.grupo] || 99) - (ordem[b.grupo] || 99);
                     });
 
                     let tableBody = [];
                     let currentGroup = '';
-                    const labelGrupos = { 'MAO_DE_OBRA': 'MÃO DE OBRA', 'MATERIAL': 'MATERIAL', 'EQUIPAMENTOS': 'EQUIPAMENTOS', 'SERVICO': 'SERVIÇO' };
-                    let sumMat = 0, sumMao = 0, sumEquip = 0, sumServ = 0;
                     const itensComMemoria = [];
 
                     itensOrdenados.forEach(item => {
@@ -7680,33 +7759,19 @@
                             tableBody.push([{ content: currentGroup, colSpan: 7, styles: { halign: 'center', fontStyle: 'bold', fillColor: [240, 240, 240] } }]);
                         }
 
-                        let precoUnitarioBase = item.preco;
-                        if (item.fonte === 'MERCADO' && item.retroativo) {
-                            const r = item.retroativo;
-                            const baseVal = parseFloat(r.base || 0);
-                            const indCotacao = parseFloat(r.indIni || 1);
-                            const indDataBase = parseFloat(r.indFin || 1);
-                            const fator = indDataBase / indCotacao;
-                            precoUnitarioBase = Math.round((baseVal * fator) * 100) / 100;
-                            itensComMemoria.push({ item, origem: item.fonte });
+                        // Armazenar para memória de cálculo se for MERCADO
+                        if (item.retroativo) {
+                            itensComMemoria.push({ item, origem: item.origem });
                         }
-                        const totalItem = Math.round((precoUnitarioBase * item.coeficiente) * 100) / 100;
 
-                        const g = item.grupo || 'MATERIAL';
-                        if (g === 'MAO_DE_OBRA') sumMao += totalItem;
-                        else if (g === 'EQUIPAMENTOS') sumEquip += totalItem;
-                        else if (g === 'SERVICO') sumServ += totalItem;
-                        else sumMat += totalItem;
-
-                        const origem = item.fonte + (item.referencia ? ` (${item.referencia})` : '');
                         tableBody.push([
-                            origem,
+                            `${item.origem}\n${item.versao}`,
                             item.codigo,
                             item.descricao,
                             item.unidade,
-                            (Number(item.coeficiente) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 4 }),
-                            (Number(precoUnitarioBase) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
-                            (Number(totalItem) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+                            formatarNumero(item.coeficiente),
+                            formatarNumero(item.preco_unitario),
+                            formatarNumero(item.total)
                         ]);
                     });
 
@@ -7718,11 +7783,11 @@
                         styles: { fontSize: 8, cellPadding: 2 },
                         headStyles: { fillColor: [51, 51, 51], textColor: [255, 255, 255] },
                         columnStyles: {
-                            0: { cellWidth: 22 },
+                            0: { cellWidth: 20 },
                             1: { cellWidth: 20 },
                             2: { cellWidth: 'auto' },
-                            3: { cellWidth: 12, halign: 'center' },
-                            4: { cellWidth: 16, halign: 'center' },
+                            3: { cellWidth: 10, halign: 'center' },
+                            4: { cellWidth: 14, halign: 'center' },
                             5: { cellWidth: 22, halign: 'right' },
                             6: { cellWidth: 22, halign: 'right' }
                         },
@@ -7731,51 +7796,53 @@
 
                     // --- TOTAIS ---
                     let finalY = doc.lastAutoTable.finalY + 10;
-                    if (finalY > 250) { doc.addPage(); finalY = 50; }
+                    if (finalY > 230) { doc.addPage(); finalY = 50; }
 
+                    const totalSemBDI = Object.values(subtotaisPorGrupo).reduce((a, b) => a + b, 0);
                     const bdiVal = parseFloat((dados.bdi || '0').toString().replace(',', '.')) / 100 || 0;
                     const descVal = parseFloat((dados.desconto || '0').toString().replace(',', '.')) / 100 || 0;
 
-                    const totalSemBDI = sumMat + sumMao + sumEquip + sumServ;
                     const totalComBDI = totalSemBDI * (1 + bdiVal);
                     const valorBDI = totalComBDI - totalSemBDI;
                     const valorDesconto = totalComBDI * descVal;
                     const totalGeral = totalComBDI - valorDesconto;
 
                     doc.setFontSize(9);
-                    const printTotal = (label, val, y) => {
-                        if (val > 0) {
-                            doc.text(label, 140, y);
-                            // Ajuste para evitar quebra de linha: alinhar à direita com margem segura
-                            doc.text(val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), 195, y, { align: 'right' });
-                            return y + 5;
+                    doc.setTextColor(50, 50, 50);
+
+                    // Renderizar Subtotais Dinâmicos
+                    Object.entries(subtotaisPorGrupo).forEach(([grupo, valor]) => {
+                        if (valor > 0) {
+                            doc.setFont("helvetica", "normal");
+                            doc.text(`Total ${grupo}:`, 140, finalY);
+                            doc.text(formatarMoeda(valor), 195, finalY, { align: 'right' });
+                            finalY += 5;
                         }
-                        return y;
-                    };
+                    });
 
-                    finalY = printTotal("Total Material:", sumMat, finalY);
-                    finalY = printTotal("Total Mão de Obra:", sumMao, finalY);
-                    finalY = printTotal("Total Equipamentos:", sumEquip, finalY);
-                    finalY = printTotal("Total Serviços:", sumServ, finalY);
-
-                    doc.setFont("helvetica", "bold");
-                    // BDI sempre mostra se maior que 0
+                    // BDI
                     if (valorBDI > 0) {
+                        doc.setFont("helvetica", "bold");
                         doc.text(`BDI (${(bdiVal * 100).toFixed(2)}%):`, 140, finalY);
-                        doc.text(valorBDI.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), 195, finalY, { align: 'right' });
+                        doc.text(formatarMoeda(valorBDI), 195, finalY, { align: 'right' });
                         finalY += 5;
                     }
 
+                    // Desconto
                     if (valorDesconto > 0) {
+                        doc.setFont("helvetica", "bold");
                         doc.text(`Desconto (${(descVal * 100).toFixed(2)}%):`, 140, finalY);
-                        doc.text(valorDesconto.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), 195, finalY, { align: 'right' });
+                        doc.text(formatarMoeda(valorDesconto), 195, finalY, { align: 'right' });
                         finalY += 5;
                     }
 
-                    doc.setFontSize(11);
-                    doc.setTextColor(0, 143, 61);
-                    doc.text("PREÇO TOTAL UNITÁRIO:", 110, finalY + 2);
-                    doc.text(totalGeral.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), 195, finalY + 2, { align: 'right' });
+                    // Linha Final: PREÇO TOTAL UNITÁRIO (Premium Style)
+                    finalY += 2;
+                    doc.setFontSize(12);
+                    doc.setFont("helvetica", "bold");
+                    doc.setTextColor(0, 143, 61); // Verde Institucional SOP
+                    doc.text("PREÇO TOTAL UNITÁRIO:", 105, finalY);
+                    doc.text(formatarMoeda(totalGeral), 195, finalY, { align: 'right' });
 
                     // --- MEMÓRIA DE CÁLCULO DETALHADA (Restaurada) ---
                     if (itensComMemoria.length > 0) {
@@ -7829,6 +7896,8 @@
                             if (cy > doc.internal.pageSize.getHeight() - 60) { doc.addPage(); cy = 50; }
 
                             const r = item.retroativo;
+                            if (!r) return; // Proteção: Pula se r estiver undefined (Garante que erro 'base' não ocorra)
+
                             const baseVal = parseFloat(r.base || 0);
                             const indCotacao = parseFloat(r.indIni || 1); // Source (Ini)
                             const indDataBase = parseFloat(r.indFin || 1); // Target (Fin)
