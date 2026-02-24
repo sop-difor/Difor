@@ -8355,7 +8355,7 @@
                 function renderizarRelatorioSOP_HTML(dados, container) {
                     const safeLoc = (val, dec = 2) => (Number(val) || 0).toLocaleString('pt-BR', { minimumFractionDigits: dec, maximumFractionDigits: dec });
 
-                    // Cabeçalho
+                    // Cabeçalho da Composição
                     const codigo = dados.codigo || 'N/A';
                     const descricao = dados.descricao || 'SEM DESCRIÇÃO';
                     const unidade = dados.unidade || 'N/A';
@@ -8363,55 +8363,48 @@
                     const bdiText = (dados.bdi !== null && dados.bdi !== undefined) ? (dados.bdi + '%') : '0,00%';
                     const descText = (dados.desconto !== null && dados.desconto !== undefined) ? (dados.desconto + '%') : '0,00%';
 
-                    // Agrupamento
-                    const groups = {};
-                    (dados.itens || []).forEach(item => {
-                        const g = (item.tipo_grupo || 'MATERIAIS').toUpperCase();
-                        if (!groups[g]) groups[g] = [];
-                        groups[g].push(item);
-                    });
+                    // Agrupamento EXCLUSIVO por tipo_grupo (reduce)
+                    const itens = dados.itens || [];
+                    const itensAgrupados = itens.reduce((acc, item) => {
+                        const grupo = item.tipo_grupo || 'GERAL';
+                        if (!acc[grupo]) acc[grupo] = [];
+                        acc[grupo].push(item);
+                        return acc;
+                    }, {});
 
                     let totalSimples = 0;
                     let tableRows = '';
 
-                    const groupOrder = ['MÃO DE OBRA', 'MATERIAIS', 'EQUIPAMENTOS', 'SERVIÇOS'];
-                    const sortedGroups = Object.keys(groups).sort((a, b) => {
-                        const idxA = groupOrder.indexOf(a);
-                        const idxB = groupOrder.indexOf(b);
-                        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-                        if (idxA !== -1) return -1;
-                        if (idxB !== -1) return 1;
-                        return a.localeCompare(b);
-                    });
+                    // Iteração sobre Grupos e Insumos
+                    Object.entries(itensAgrupados).forEach(([nomeGrupo, insumosDoGrupo]) => {
+                        let subtotalGrupo = 0;
 
-                    sortedGroups.forEach(groupName => {
-                        const items = groups[groupName];
-                        let subtotal = 0;
-
+                        // Título do Grupo (Linha Centralizada)
                         tableRows += `
                             <tr class="table-secondary">
-                                <td colspan="8" class="text-center fw-bold py-2 text-uppercase" style="background-color: #f2f2f2; letter-spacing: 1px;">${groupName}</td>
+                                <td colspan="8" class="text-center fw-bold py-2 text-uppercase" style="background-color: #f2f2f2; letter-spacing: 1px;">${nomeGrupo}</td>
                             </tr>
                         `;
 
-                        items.forEach(item => {
-                            // Mapeamento seguro de chaves (banco vs importação)
+                        // Renderização dos Itens do Grupo
+                        insumosDoGrupo.map(item => {
                             const codInsumo = item.codigo_insumo || item.codigo || '-';
                             const descInsumo = item.descricao_insumo || item.descricao || '-';
                             const precoUnit = Number(item.preco_unitario || item.preco || 0);
                             const coef = Number(item.coeficiente || 0);
                             const total = Number(item.total || item.total_item || (precoUnit * coef)) || 0;
+                            const dataItem = item.data_tabela || item.data_referencia || '-';
 
-                            subtotal += total;
+                            subtotalGrupo += total;
                             totalSimples += total;
 
                             tableRows += `
                                 <tr style="font-size: 0.85rem;">
                                     <td class="text-center text-muted">${item.origem || '-'}</td>
+                                    <td class="text-center">${dataItem}</td>
                                     <td class="text-center fw-bold">${codInsumo}</td>
                                     <td style="text-align: justify;">${descInsumo}</td>
                                     <td class="text-center">${item.unidade || '-'}</td>
-                                    <td class="text-center">${item.data_tabela || '-'}</td>
                                     <td class="text-center">${safeLoc(coef, 4)}</td>
                                     <td class="text-end">${safeLoc(precoUnit)}</td>
                                     <td class="text-end fw-bold">${safeLoc(total)}</td>
@@ -8419,10 +8412,11 @@
                             `;
                         });
 
+                        // Rodapé do Grupo (Subtotal)
                         tableRows += `
-                            <tr class="fw-bold" style="background-color: #fafafa;">
-                                <td colspan="7" class="text-end pe-3 text-muted" style="font-size: 0.8rem;">SUBTOTAL ${groupName}</td>
-                                <td class="text-end" style="border-bottom: 2px solid #dee2e6;">${safeLoc(subtotal)}</td>
+                            <tr class="fw-bold" style="background-color: #f8f9fa;">
+                                <td colspan="7" class="text-end pe-3 text-muted" style="font-size: 0.8rem;">TOTAL ${nomeGrupo}</td>
+                                <td class="text-end" style="border-bottom: 2px solid #dee2e6;">${safeLoc(subtotalGrupo)}</td>
                             </tr>
                         `;
                     });
@@ -8485,10 +8479,10 @@
                                     <thead class="bg-dark text-white text-center small" style="background-color: #343a40 !important;">
                                         <tr>
                                             <th style="width: 8%">ORIGEM</th>
+                                            <th style="width: 8%">DATA</th>
                                             <th style="width: 10%">CÓDIGO</th>
                                             <th style="width: 44%">DESCRIÇÃO DO INSUMO</th>
                                             <th style="width: 6%">UNID</th>
-                                            <th style="width: 8%">DATA</th>
                                             <th style="width: 8%">COEF.</th>
                                             <th style="width: 8%">P. UNIT.</th>
                                             <th style="width: 8%">TOTAL</th>
