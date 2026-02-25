@@ -6378,7 +6378,7 @@
                                             </div>
                                         </div>
                                         <div class="orcamento-actions">
-                                            <button class="btn btn-action-baixar" onclick="${isAnalytical ? `visualizarComposicao(${obra.id}, null, { autoPrint: true })` : `prepararExportacaoComposicao(${obra.id}, '${obra.arquivo_url || ''}')`}" title="Imprimir Composição"><i class="bi bi-printer"></i> Imprimir</button>
+                                            <button class="btn btn-action-baixar" onclick="prepararExportacaoComposicao(${obra.id}, '${obra.arquivo_url || ''}')" title="Baixar Composição"><i class="bi bi-download"></i> Baixar</button>
                                             <button class="btn btn-action-icon ms-1" onclick="visualizarComposicao(${obra.id}, '${obra.arquivo_url || ''}')" title="Visualizar Documento"><i class="bi bi-eye-fill text-primary"></i></button>
                                             ${(isOwner || isAdmin) ? `
                                                 ${isAnalytical ?
@@ -7545,10 +7545,18 @@
                         }
 
                         if (docData) {
-                            compositionDataToExport = docData;
-                            const modalEl = document.getElementById('modalExportarComposicao');
-                            if (modalEl.parentNode !== document.body) document.body.appendChild(modalEl);
-                            new bootstrap.Modal(modalEl).show();
+                            const meta = docData.meta || {};
+                            const dados = {
+                                codigo: meta.codigo || 'S/C',
+                                descricao: meta.descricao,
+                                unidade: meta.unidade || '-',
+                                data_base: meta.data_base,
+                                bdi: meta.bdi,
+                                desconto: meta.desconto,
+                                itens: docData.itens || [],
+                                totais: meta.totais
+                            };
+                            gerarPDF_Profissional(dados);
                         } else {
                             alert("Esta composição não possui arquivo nem dados analíticos.");
                         }
@@ -7573,14 +7581,28 @@
                 const formatarVersao = (texto) => {
                     if (!texto || texto === '-') return '-';
                     const txt = texto.toString().toUpperCase().trim();
-                    const mesesLista = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+                    // Lista de abreviações dos meses
+                    const mesesAbrev = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+                    // Mapa de nomes completos para abreviações
                     const mesesMap = {
                         'JANEIRO': 'Jan', 'FEVEREIRO': 'Fev', 'MARÇO': 'Mar', 'ABRIL': 'Abr',
                         'MAIO': 'Mai', 'JUNHO': 'Jun', 'JULHO': 'Jul', 'AGOSTO': 'Ago',
                         'SETEMBRO': 'Set', 'OUTUBRO': 'Out', 'NOVEMBRO': 'Nov', 'DEZEMBRO': 'Dez'
                     };
 
-                    // 1. Tenta encontrar nome do mês (ex: "SETEMBRO de 2024")
+                    // Caso 1: Detecção de números de versão (Ex: "28.1", "30") -> Manter inalterado
+                    if (/^\d+(\.\d+)?$/.test(txt)) return txt;
+
+                    // Caso 2: Tenta encontrar nome do mês por extenso ou abreviado (Ex: "SETEMBRO DE 2024" ou "FEV. DE 2026")
+                    const mesesAbrevMap = {
+                        'JAN': 'Jan', 'FEV': 'Fev', 'MAR': 'Mar', 'ABR': 'Abr',
+                        'MAI': 'Mai', 'JUN': 'Jun', 'JUL': 'Jul', 'AGO': 'Ago',
+                        'SET': 'Set', 'OUT': 'Out', 'NOV': 'Nov', 'DEZ': 'Dez'
+                    };
+
+                    // Primeiro tenta meses completos (para não casar "MAR" em "MARÇO")
                     for (let mes in mesesMap) {
                         if (txt.includes(mes)) {
                             const anoMatch = txt.match(/\d{4}/);
@@ -7588,40 +7610,64 @@
                         }
                     }
 
-                    // 2. Tenta parsear como data (ISO: 2024-09-20 ou BR: 20/09/2024)
+                    // Depois tenta abreviações
+                    for (let abrev in mesesAbrevMap) {
+                        if (txt.includes(abrev)) {
+                            const anoMatch = txt.match(/\d{4}/);
+                            if (anoMatch) return `${mesesAbrevMap[abrev]}/${anoMatch[0].substring(2)}`;
+                        }
+                    }
+
+                    // Caso 3: Parse de datas ISO (YYYY-MM-DD) ou BR (DD/MM/YYYY)
                     let d = null;
                     if (txt.includes('-')) {
                         const p = txt.split('-');
                         if (p.length === 3) d = new Date(p[0], p[1] - 1, p[2]);
-                        else if (p.length === 2) d = new Date(p[0], p[1] - 1, 1); // YYYY-MM
+                        else if (p.length === 2) d = new Date(p[0], p[1] - 1, 1);
                     } else if (txt.includes('/')) {
                         const p = txt.split('/');
                         if (p.length === 3) d = new Date(p[2], p[1] - 1, p[0]);
-                        else if (p.length === 2) d = new Date(p[1], p[0] - 1, 1); // MM/YYYY
+                        else if (p.length === 2) {
+                            // Se for MM/YYYY (SINAPI/ORSE)
+                            const mes = parseInt(p[0]);
+                            const ano = p[1];
+                            if (mes >= 1 && mes <= 12 && ano.length === 4) {
+                                return `${mesesAbrev[mes - 1]}/${ano.substring(2)}`;
+                            }
+                        }
                     }
 
                     if (d && !isNaN(d.getTime())) {
-                        return `${mesesLista[d.getMonth()]}/${d.getFullYear().toString().substring(2)}`;
+                        return `${mesesAbrev[d.getMonth()]}/${d.getFullYear().toString().substring(2)}`;
                     }
 
-                    return texto;
+                    return texto; // Retorno padrão
                 };
 
                 const normalizarItemParaPDF = (item) => {
                     const precoUnit = Number(item.preco_unitario || item.preco || 0);
                     const coef = Number(item.coeficiente || 0);
                     const total = Number(item.total || item.total_item || (precoUnit * coef)) || 0;
+
+                    // Mapeamento de nomes de grupo para padrão de exibição
+                    const rawGrupo = (item.tipo_grupo || item.grupo || 'GERAL').toUpperCase();
+                    let grupoDisplay = rawGrupo;
+                    if (rawGrupo === 'MAO_DE_OBRA' || rawGrupo === 'MAO DE OBRA') grupoDisplay = 'MÃO DE OBRA';
+                    else if (rawGrupo === 'SERVICO' || rawGrupo === 'SERVICOS') grupoDisplay = 'SERVIÇO';
+                    else if (rawGrupo === 'MATERIAL' || rawGrupo === 'MATERIAIS') grupoDisplay = 'MATERIAL';
+
                     return {
                         origem: item.origem || item.fonte || '-',
-                        versao: formatarVersao(item.versao || item.retroativo?.dataIni || item.data_tabela || '-'),
+                        versao: formatarVersao(item.versao || item.data_tabela || item.data_referencia || item.retroativo?.dataIni || '-'),
                         codigo: item.codigo_insumo || item.codigo || '-',
                         descricao: item.descricao_insumo || item.descricao || '-',
                         unidade: item.unidade || '-',
                         coeficiente: coef,
                         preco_unitario: precoUnit,
                         total: total,
-                        grupo: item.tipo_grupo || item.grupo || 'MATERIAL',
-                        retroativo: item.retroativo || null // Importante para Memória de Cálculo
+                        grupo: grupoDisplay,
+                        referencia: item.referencia || item.tipo_encargo || '',
+                        retroativo: item.retroativo || null
                     };
                 };
 
@@ -7629,6 +7675,8 @@
                 // FUNÇÃO GERAR PDF (Profissional) - Com Template SOP (pdf-lib)
                 // --------------------------------------------------------------
                 async function gerarPDF_Profissional(rawInput, options = {}) {
+                    const formatarNumero = (v, d = 2) => Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
+
                     const dados = {
                         codigo: rawInput?.codigo || rawInput?.meta?.codigo || 'S/C',
                         descricao: rawInput?.descricao || rawInput?.meta?.descricao || 'SEM DESCRIÇÃO',
@@ -7712,11 +7760,12 @@
                     yPos += 18;
 
                     // --- TABELA DE ITENS ---
-                    const formatarNumero = (v, d = 2) => (Number(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
+                    const itensRaw = dados.itens || [];
+                    const itens = itensRaw.map(normalizarItemParaPDF);
 
-                    const itensOrdenados = [...(dados.itens || [])].sort((a, b) => {
-                        const ordem = { 'MAO_DE_OBRA': 1, 'MATERIAL': 2, 'EQUIPAMENTOS': 3, 'SERVICO': 4 };
-                        return (ordem[a.tipo_grupo || a.grupo] || 99) - (ordem[b.tipo_grupo || b.grupo] || 99);
+                    const itensOrdenados = [...itens].sort((a, b) => {
+                        const ordem = { 'MÃO DE OBRA': 1, 'MATERIAL': 2, 'EQUIPAMENTOS': 3, 'SERVIÇO': 4, 'GERAL': 99 };
+                        return (ordem[a.grupo] || 99) - (ordem[b.grupo] || 99);
                     });
 
                     let tableBody = [];
@@ -7724,13 +7773,8 @@
                     let totalSimples = 0;
 
                     itensOrdenados.forEach(item => {
-                        const grupo = item.tipo_grupo || item.grupo || 'GERAL';
-                        const precoUnit = Number(item.preco_unitario || item.preco || 0);
-                        const coef = Number(item.coeficiente || 0);
-                        const total = Number(item.total || item.total_item || (precoUnit * coef)) || 0;
-                        const dataItem = item.data_tabela || item.data_referencia || '-';
-
-                        totalSimples += total;
+                        const grupo = item.grupo;
+                        totalSimples += item.total;
 
                         if (grupo !== currentGroup) {
                             currentGroup = grupo;
@@ -7741,8 +7785,8 @@
                             }]);
                         }
 
-                        // Memória de Cálculo (Mantida Conforme Modal)
-                        let fullDesc = item.descricao_insumo || item.descricao || '-';
+                        // Memória de Cálculo
+                        let fullDesc = item.descricao;
                         if (item.retroativo) {
                             const r = item.retroativo;
                             const dCot = r.dataIni ? r.dataIni.split('-').reverse().join('/') : '-';
@@ -7752,34 +7796,41 @@
                             fullDesc += `\n\n[MEMÓRIA DE CÁLCULO - RETROAÇÃO]\nValor Cotado: R$ ${formatarNumero(r.base)} | Data: ${dCot} | Índice: ${formatarNumero(r.indIni, 3)}\nData-Base: ${dBase} | Índice Base: ${formatarNumero(r.indFin, 3)} | Fator: ${fator.toFixed(4)}`;
                         }
 
+                        // Lógica de exibição da Fonte com Referência (Onerada/Desonerada) no PDF
+                        let fonteCell = item.origem;
+                        if ((item.origem === 'SEINFRA' || item.origem === 'SINAPI') && item.referencia) {
+                            const refLabel = item.referencia.toLowerCase().includes('deson') ? 'Desonerada' : 'Onerada';
+                            fonteCell = { content: `${item.origem}\n${refLabel}`, styles: { fontSize: 6, fontStyle: 'normal' } };
+                        }
+
                         tableBody.push([
-                            item.origem || '-',
-                            dataItem,
-                            item.codigo_insumo || item.codigo || '-',
-                            { content: fullDesc, styles: { halign: 'justify' } },
-                            item.unidade || '-',
-                            formatarNumero(coef, 4),
-                            formatarNumero(precoUnit),
-                            { content: formatarNumero(total), styles: { fontStyle: 'bold' } }
+                            fonteCell,
+                            item.versao,
+                            item.codigo,
+                            { content: fullDesc, styles: { halign: 'justify', fontStyle: 'normal' } },
+                            item.unidade,
+                            formatarNumero(item.coeficiente, 4),
+                            formatarNumero(item.preco_unitario),
+                            { content: formatarNumero(item.total), styles: { fontStyle: 'normal' } }
                         ]);
                     });
 
                     doc.autoTable({
                         startY: yPos,
-                        head: [['ORIGEM', 'DATA', 'CÓDIGO', 'DESCRIÇÃO DO INSUMO', 'UNID', 'COEF.', 'P. UNIT.', 'TOTAL']],
+                        head: [['FONTE', 'VERSÃO', 'CÓDIGO', 'DESCRIÇÃO DO INSUMO', 'UNID', 'COEF.', 'P. UNIT.', 'TOTAL']],
                         body: tableBody,
                         theme: 'grid',
                         styles: { fontSize: 7, cellPadding: 1.5, valign: 'middle' },
                         headStyles: { fillColor: [52, 58, 64], textColor: [255, 255, 255], halign: 'center', fontStyle: 'bold' },
                         columnStyles: {
-                            0: { cellWidth: 14, halign: 'center' },
-                            1: { cellWidth: 14, halign: 'center' },
-                            2: { cellWidth: 16, halign: 'center' },
+                            0: { cellWidth: 12, halign: 'center' },
+                            1: { cellWidth: 12, halign: 'center' },
+                            2: { cellWidth: 15, halign: 'center' },
                             3: { cellWidth: 'auto' },
-                            4: { cellWidth: 10, halign: 'center' },
-                            5: { cellWidth: 14, halign: 'center' },
-                            6: { cellWidth: 18, halign: 'right' },
-                            7: { cellWidth: 18, halign: 'right' }
+                            4: { cellWidth: 8, halign: 'center' },
+                            5: { cellWidth: 12, halign: 'center' },
+                            6: { cellWidth: 17, halign: 'right' },
+                            7: { cellWidth: 10, halign: 'right' }
                         },
                         margin: { left: 14, right: 14, top: 40, bottom: 20 },
                         didDrawPage: (data) => {
@@ -7829,12 +7880,7 @@
                     doc.setFontSize(12);
                     doc.text(`R$ ${formatarNumero(precoFinal)}`, larguraPagina - 14, finalY + 3, { align: 'right' });
 
-                    if (mode === 'open') {
-                        const blob = doc.output('bloburl');
-                        window.open(blob, '_blank');
-                    } else {
-                        doc.save(`${dados.codigo}_Analitica.pdf`);
-                    }
+                    doc.save(`${dados.codigo}_Analitica.pdf`);
                 }
 
                 // NOVA FUNÇÃO: VISUALIZAR COMPOSIÇÃO (Fetch JSON -> Gerar PDF Blob)
@@ -7917,10 +7963,6 @@
                                     modal.show();
 
                                     renderizarRelatorioSOP_HTML(docData, modalBody);
-
-                                    if (options.autoPrint) {
-                                        setTimeout(() => { window.print(); }, 500);
-                                    }
                                 } else {
                                     // Caso não seja analítica (ex: apenas arquivo PDF/XLS arquivado)
                                     if (url) window.open(url, '_blank');
@@ -7947,7 +7989,22 @@
                 }
 
                 function renderizarRelatorioSOP_HTML(dados, container) {
-                    const safeLoc = (val, dec = 2) => (Number(val) || 0).toLocaleString('pt-BR', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+                    const parseLocalNum = (v) => {
+                        if (v === undefined || v === null || v === '') return 0;
+                        if (typeof v === 'number') return v;
+                        let str = v.toString().trim();
+                        // Só remove pontos se houver vírgula (formato brasileiro 1.234,56)
+                        // Se não houver vírgula, o ponto provavelmente já é o separador decimal (formato US 1234.56)
+                        if (str.includes(',')) {
+                            return parseFloat(str.replace(/\./g, '').replace(',', '.')) || 0;
+                        }
+                        return parseFloat(str) || 0;
+                    };
+
+                    const safeLoc = (val, dec = 2) => {
+                        const n = (typeof val === 'string') ? parseLocalNum(val) : (Number(val) || 0);
+                        return n.toLocaleString('pt-BR', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+                    };
 
                     // Cabeçalho da Composição
                     const codigo = dados.codigo || 'N/A';
@@ -7957,10 +8014,12 @@
                     const bdiText = (dados.bdi !== null && dados.bdi !== undefined) ? (dados.bdi + '%') : '0,00%';
                     const descText = (dados.desconto !== null && dados.desconto !== undefined) ? (dados.desconto + '%') : '0,00%';
 
-                    // Agrupamento EXCLUSIVO por tipo_grupo (reduce)
-                    const itens = dados.itens || [];
+                    // Agrupamento EXCLUSIVO por grupo (após normalização)
+                    const itensRaw = dados.itens || [];
+                    const itens = itensRaw.map(normalizarItemParaPDF);
+
                     const itensAgrupados = itens.reduce((acc, item) => {
-                        const grupo = item.tipo_grupo || 'GERAL';
+                        const grupo = item.grupo || 'GERAL';
                         if (!acc[grupo]) acc[grupo] = [];
                         acc[grupo].push(item);
                         return acc;
@@ -7971,7 +8030,16 @@
                     const retroativos = [];
 
                     // Iteração sobre Grupos e Insumos
-                    Object.entries(itensAgrupados).forEach(([nomeGrupo, insumosDoGrupo]) => {
+                    // Ordem desejada de grupos
+                    const ordemGrupos = ['MÃO DE OBRA', 'MATERIAL', 'EQUIPAMENTOS', 'SERVIÇO', 'GERAL'];
+                    const gruposOrdenados = Object.keys(itensAgrupados).sort((a, b) => {
+                        const idxA = ordemGrupos.indexOf(a);
+                        const idxB = ordemGrupos.indexOf(b);
+                        return (idxA === -1 ? 99 : idxA) - (idxB === -1 ? 99 : idxB);
+                    });
+
+                    gruposOrdenados.forEach((nomeGrupo) => {
+                        const insumosDoGrupo = itensAgrupados[nomeGrupo];
                         let subtotalGrupo = 0;
 
                         // Título do Grupo (Linha Centralizada)
@@ -7983,33 +8051,33 @@
 
                         // Renderização dos Itens do Grupo
                         insumosDoGrupo.map(item => {
-                            const codInsumo = item.codigo_insumo || item.codigo || '-';
-                            const descInsumo = item.descricao_insumo || item.descricao || '-';
-                            const precoUnit = Number(item.preco_unitario || item.preco || 0);
-                            const coef = Number(item.coeficiente || 0);
-                            const total = Number(item.total || item.total_item || (precoUnit * coef)) || 0;
-                            const dataItem = item.data_tabela || item.versao || item.data_referencia || '-';
-
-                            subtotalGrupo += total;
-                            totalSimples += total;
+                            subtotalGrupo += item.total;
+                            totalSimples += item.total;
 
                             if (item.retroativo) {
-                                retroativos.push({ ...item, codInsumo, descInsumo });
+                                retroativos.push({ ...item, codInsumo: item.codigo, descInsumo: item.descricao });
+                            }
+
+                            // Lógica de exibição da Fonte com Referência (Onerada/Desonerada)
+                            let fonteDisplay = `<div class="fw-bold">${item.origem}</div>`;
+                            if ((item.origem === 'SEINFRA' || item.origem === 'SINAPI') && item.referencia) {
+                                const refLabel = item.referencia.toLowerCase().includes('deson') ? 'Desonerada' : 'Onerada';
+                                fonteDisplay += `<div class="text-muted" style="font-size: 0.65rem; margin-top: 1px;">${refLabel}</div>`;
                             }
 
                             tableRows += `
                                 <tr style="font-size: 0.85rem;">
-                                    <td class="text-center text-muted">${item.origem || item.fonte || '-'}</td>
-                                    <td class="text-center">${dataItem}</td>
-                                    <td class="text-center fw-bold">${codInsumo}</td>
+                                    <td class="text-center">${fonteDisplay}</td>
+                                    <td class="text-center">${item.versao}</td>
+                                    <td class="text-center">${item.codigo}</td>
                                     <td style="text-align: justify;">
-                                        <div class="fw-bold text-dark">${descInsumo}</div>
+                                        <div class="text-dark">${item.descricao}</div>
                                         ${item.retroativo ? '<div class="text-success fw-bold mt-1" style="font-size: 0.65rem;"><i class="bi bi-info-circle me-1"></i> Ver Memória de Cálculo na Pág. 02</div>' : ''}
                                     </td>
-                                    <td class="text-center">${item.unidade || '-'}</td>
-                                    <td class="text-center">${safeLoc(coef, 4)}</td>
-                                    <td class="text-end">${safeLoc(precoUnit)}</td>
-                                    <td class="text-end fw-bold">${safeLoc(total)}</td>
+                                    <td class="text-center">${item.unidade}</td>
+                                    <td class="text-center">${safeLoc(item.coeficiente, 4)}</td>
+                                    <td class="text-end">${safeLoc(item.preco_unitario)}</td>
+                                    <td class="text-end">${safeLoc(item.total)}</td>
                                 </tr>
                             `;
                         });
@@ -8024,8 +8092,8 @@
                     });
 
                     // Cálculos de Rodapé
-                    const bdiVal = parseFloat((dados.bdi || 0).toString().replace(',', '.')) / 100;
-                    const descVal = parseFloat((dados.desconto || 0).toString().replace(',', '.')) / 100;
+                    const bdiVal = parseLocalNum(dados.bdi) / 100;
+                    const descVal = parseLocalNum(dados.desconto) / 100;
 
                     const valorBDI = (totalSimples || 0) * (bdiVal || 0);
                     const totalComBDI = (totalSimples || 0) + valorBDI;
@@ -8052,9 +8120,12 @@
 
                                 ${retroativos.map(r => {
                             const ret = r.retroativo;
-                            const fator = (Number(ret.indFin) / Number(ret.indIni)) || 1;
-                            const dCot = ret.dataIni ? ret.dataIni.split('-').reverse().slice(1).join('/') : '-';
-                            const dBase = ret.dataFin ? ret.dataFin.split('-').reverse().slice(1).join('/') : '-';
+                            const base = parseLocalNum(ret.base);
+                            const iIni = parseLocalNum(ret.indIni);
+                            const iFin = parseLocalNum(ret.indFin);
+                            const fator = (iFin / iIni) || 1;
+                            const dCot = ret.dataIni ? (ret.dataIni.split('-').length === 3 ? ret.dataIni.split('-').reverse().slice(1).join('/') : ret.dataIni.split('-').reverse().join('/')) : '-';
+                            const dBase = ret.dataFin ? (ret.dataFin.split('-').length === 3 ? ret.dataFin.split('-').reverse().slice(1).join('/') : ret.dataFin.split('-').reverse().join('/')) : '-';
 
                             return `
                                     <div class="mb-5 border-bottom pb-4">
@@ -8067,13 +8138,13 @@
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                <tr><td>A. Valor Cotado (Preço de Mercado)</td><td class="text-end fw-bold">R$ ${safeLoc(ret.base)}</td></tr>
+                                                <tr><td>A. Valor Cotado (Preço de Mercado)</td><td class="text-center fw-bold">R$ ${safeLoc(base)}</td></tr>
                                                 <tr><td>B. Data da Cotação</td><td class="text-center">${dCot || '-'}</td></tr>
-                                                <tr><td>C. Índice na Data da Cotação</td><td class="text-center">${safeLoc(ret.indIni, 3)}</td></tr>
+                                                <tr><td>C. Índice na Data da Cotação</td><td class="text-center">${safeLoc(iIni, 3)}</td></tr>
                                                 <tr><td>D. Data-Base do Orçamento</td><td class="text-center">${dBase || '-'}</td></tr>
-                                                <tr><td>E. Índice na Data-Base</td><td class="text-center">${safeLoc(ret.indFin, 3)}</td></tr>
+                                                <tr><td>E. Índice na Data-Base</td><td class="text-center">${safeLoc(iFin, 3)}</td></tr>
                                                 <tr><td>F. Fator de Ajuste (E / C)</td><td class="text-center fw-bold">${fator.toFixed(4)}</td></tr>
-                                                <tr><td>G. Preço Adotado (A x F)</td><td class="text-end fw-bold text-success">R$ ${safeLoc(ret.base * fator)}</td></tr>
+                                                <tr><td>G. Preço Adotado (A x F)</td><td class="text-center fw-bold text-success">R$ ${safeLoc(base * fator)}</td></tr>
                                             </tbody>
                                         </table>
                                     </div>
@@ -8100,27 +8171,39 @@
                                 </div>
                             </div>
 
-                            <!-- Metadados da Composição Compactos -->
-                            <div class="row g-2 mb-3 p-2 border rounded bg-light shadow-sm align-items-center">
-                                <div class="col-md-2">
-                                    <label class="text-muted fw-bold text-uppercase d-block mb-0" style="font-size: 0.65rem;">CÓDIGO / VERSÃO</label>
-                                    <div class="d-flex align-items-center">
-                                        <span class="fw-bold text-dark fs-6">${codigo}</span>
-                                        ${dados.versao_atual ? `<span class="badge bg-secondary ms-2" style="font-size: 0.65rem; background-color: #6c757d !important;">${dados.versao_atual}</span>` : ''}
+                            <!-- Metadados da Composição Melhorados -->
+                            <div class="row g-0 mb-4 p-3 border rounded bg-white shadow-sm align-items-center">
+                                <!-- Lado Esquerdo: Identificação -->
+                                <div class="col-md-9 d-flex align-items-center">
+                                    <div class="pe-4 border-end" style="min-width: 170px; white-space: nowrap;">
+                                        <label class="text-muted fw-bold text-uppercase d-block mb-1" style="font-size: 0.7rem; letter-spacing: 0.5px;">CÓDIGO / VERSÃO</label>
+                                        <div class="d-flex align-items-center">
+                                            <span class="fw-bold text-dark fs-6">${codigo}</span>
+                                            ${dados.versao_atual ? `<span class="badge bg-secondary ms-2" style="font-size: 0.65rem; padding: 2px 6px;">${dados.versao_atual}</span>` : ''}
+                                        </div>
+                                    </div>
+                                    <div class="ps-4 flex-grow-1" style="padding-right: 40px;">
+                                        <label class="text-muted fw-bold text-uppercase d-block mb-1" style="font-size: 0.7rem; letter-spacing: 0.5px;">DESCRIÇÃO DA COMPOSIÇÃO</label>
+                                        <div class="fw-bold text-dark fs-6 text-uppercase" style="line-height: 1.5; text-align: justify; text-justify: inter-word; width: 100%;">${descricao}</div>
                                     </div>
                                 </div>
-                                <div class="col-md-7 border-start ps-3">
-                                    <label class="text-muted fw-bold text-uppercase d-block mb-0" style="font-size: 0.65rem;">DESCRIÇÃO DA COMPOSIÇÃO</label>
-                                    <span class="fw-bold text-dark fs-6 text-uppercase" style="font-size: 0.75rem !important;">${descricao}</span>
-                                </div>
-                                <div class="col-md-1 border-start ps-3">
-                                    <label class="text-muted fw-bold text-uppercase d-block mb-0" style="font-size: 0.65rem;">UNID.</label>
-                                    <span class="fw-bold text-dark fs-6">${unidade}</span>
-                                </div>
-                                <div class="col-md-2 border-start ps-3">
-                                    <div class="d-flex flex-column gap-0">
-                                        <div><span class="text-muted fw-bold" style="font-size: 0.65rem;">BDI:</span> <span class="fw-bold ms-1 text-primary small">${bdiText}</span></div>
-                                        <div><span class="text-muted fw-bold" style="font-size: 0.65rem;">DESC:</span> <span class="fw-bold ms-1 text-danger small">${descText}</span></div>
+                                <!-- Lado Direito: Índices e Unidade -->
+                                <div class="col-md-3 d-flex justify-content-end align-items-center text-end border-start ps-4">
+                                    <div class="pe-4 border-end">
+                                        <label class="text-muted fw-bold text-uppercase d-block mb-1" style="font-size: 0.7rem; letter-spacing: 0.5px;">UNID.</label>
+                                        <span class="fw-bold text-dark fs-5">${unidade}</span>
+                                    </div>
+                                    <div class="ps-4">
+                                        <div class="d-flex flex-column gap-1" style="min-width: 85px;">
+                                            <div class="d-flex justify-content-between align-items-center gap-3">
+                                                <span class="text-muted fw-bold" style="font-size: 0.75rem;">BDI:</span>
+                                                <span class="fw-bold text-primary fs-6" style="white-space: nowrap;">${bdiText}</span>
+                                            </div>
+                                            <div class="d-flex justify-content-between align-items-center gap-3">
+                                                <span class="text-muted fw-bold" style="font-size: 0.75rem;">DESC:</span>
+                                                <span class="fw-bold text-danger fs-6" style="white-space: nowrap;">${descText}</span>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -8130,11 +8213,11 @@
                                 <table class="table table-bordered table-sm align-middle mb-0" style="font-size: 0.82rem;">
                                     <thead class="bg-dark text-white text-center" style="background-color: #343a40 !important;">
                                         <tr style="font-size: 0.75rem;">
-                                            <th style="width: 8%">ORIGEM</th>
-                                            <th style="width: 8%">DATA</th>
-                                            <th style="width: 10%">CÓDIGO</th>
-                                            <th style="width: 44%">DESCRIÇÃO DO INSUMO</th>
-                                            <th style="width: 6%">UNID</th>
+                                            <th style="width: 5%">FONTE</th>
+                                            <th style="width: 5%">VERSÃO</th>
+                                            <th style="width: 8%">CÓDIGO</th>
+                                            <th style="width: 50%">DESCRIÇÃO DO INSUMO</th>
+                                            <th style="width: 8%">UNID</th>
                                             <th style="width: 8%">COEF.</th>
                                             <th style="width: 8%">P. UNIT.</th>
                                             <th style="width: 8%">TOTAL</th>
@@ -8144,26 +8227,26 @@
                                         ${tableRows}
                                     </tbody>
                                     <tfoot>
-                                        <tr class="bg-white">
-                                            <td colspan="7" class="text-end fw-bold py-1 text-uppercase pe-3 small">Total Simples</td>
-                                            <td class="text-end fw-bold py-1 small">R$ ${safeLoc(totalSimples)}</td>
+                                        <tr class="bg-light border-top-0">
+                                            <td colspan="5" class="text-end fw-bold py-2 text-uppercase pe-4" style="font-size: 0.75rem; color: #6c757d;">Total Simples (Insumos)</td>
+                                            <td colspan="3" class="text-end fw-bold py-2 pe-3" style="font-size: 0.85rem;">R$ ${safeLoc(totalSimples)}</td>
                                         </tr>
                                         ${valorBDI > 0 ? `
-                                        <tr class="bg-white text-primary">
-                                            <td colspan="7" class="text-end fw-bold text-uppercase pe-3 small">BDI Aplicado (${bdiText})</td>
-                                            <td class="text-end fw-bold small">R$ ${safeLoc(valorBDI)}</td>
+                                        <tr class="bg-white">
+                                            <td colspan="5" class="text-end fw-bold py-2 text-uppercase pe-4 text-primary" style="font-size: 0.75rem;">(+) BDI Aplicado (${bdiText})</td>
+                                            <td colspan="3" class="text-end fw-bold py-2 pe-3 text-primary" style="font-size: 0.85rem;">R$ ${safeLoc(valorBDI)}</td>
                                         </tr>` : ''}
                                         ${valorDesconto > 0 ? `
-                                        <tr class="bg-white text-danger">
-                                            <td colspan="7" class="text-end fw-bold text-uppercase pe-3 small">Desconto Aplicado (${descText})</td>
-                                            <td class="text-end fw-bold small">R$ ${safeLoc(valorDesconto)}</td>
+                                        <tr class="bg-white">
+                                            <td colspan="5" class="text-end fw-bold py-2 text-uppercase pe-4 text-danger" style="font-size: 0.75rem;">(-) Desconto Aplicado (${descText})</td>
+                                            <td colspan="3" class="text-end fw-bold py-2 pe-3 text-danger" style="font-size: 0.85rem;">R$ ${safeLoc(valorDesconto)}</td>
                                         </tr>` : ''}
-                                        <tr style="background-color: #f8fdf9 !important;">
-                                            <td colspan="7" class="text-end fw-bold py-2 text-uppercase pe-3 fs-6" style="color: #008F3D;">Preço Total Unitário</td>
-                                            <td class="text-end py-2" style="color: #008F3D; border-left: transparent;">
+                                        <tr style="background-color: #f8fdf9 !important; border-top: 2px solid #008F3D !important;">
+                                            <td colspan="5" class="text-end fw-bold py-3 text-uppercase pe-4 fs-5" style="color: #008F3D; letter-spacing: 1px;">Preço Total Unitário</td>
+                                            <td colspan="3" class="text-end py-3 pe-3" style="color: #008F3D;">
                                                 <div class="d-flex align-items-baseline justify-content-end gap-1">
-                                                    <span class="fw-bold small">R$</span>
-                                                    <span class="fw-bold fs-4">${safeLoc(precoFinal)}</span>
+                                                    <span class="fw-bold fs-6">R$</span>
+                                                    <span class="fw-bold fs-2" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">${safeLoc(precoFinal)}</span>
                                                 </div>
                                             </td>
                                         </tr>
@@ -8284,7 +8367,7 @@
                     // 3. TABELA DE ITENS
                     const headerRow = new TableRow({
                         children: [
-                            "ORIGEM", "DATA", "CÓDIGO", "DESCRIÇÃO DO INSUMO", "UNID", "COEF.", "P. UNIT.", "TOTAL"
+                            "FONTE", "VERSÃO", "CÓDIGO", "DESCRIÇÃO DO INSUMO", "UNID", "COEF.", "P. UNIT.", "TOTAL"
                         ].map(h => new TableCell({
                             shading: { fill: "343A40" },
                             children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, color: "FFFFFF", size: 14 })], alignment: AlignmentType.CENTER })]
@@ -8295,18 +8378,17 @@
                     let currentGroup = '';
                     let subtotalSimples = 0;
 
-                    const itensOrdenados = [...(dados.itens || [])].sort((a, b) => {
-                        const ordem = { 'MAO_DE_OBRA': 1, 'MATERIAL': 2, 'EQUIPAMENTOS': 3, 'SERVICO': 4 };
-                        return (ordem[a.tipo_grupo || a.grupo] || 99) - (ordem[b.tipo_grupo || b.grupo] || 99);
+                    const itensRaw = dados.itens || [];
+                    const itens = itensRaw.map(normalizarItemParaPDF);
+
+                    const itensOrdenados = [...itens].sort((a, b) => {
+                        const ordem = { 'MÃO DE OBRA': 1, 'MATERIAL': 2, 'EQUIPAMENTOS': 3, 'SERVIÇO': 4, 'GERAL': 99 };
+                        return (ordem[a.grupo] || 99) - (ordem[b.grupo] || 99);
                     });
 
                     itensOrdenados.forEach(item => {
-                        const grupo = item.tipo_grupo || item.grupo || 'GERAL';
-                        const precoUnit = Number(item.preco_unitario || item.preco || 0);
-                        const coef = Number(item.coeficiente || 0);
-                        const total = Number(item.total || item.total_item || (precoUnit * coef)) || 0;
-                        const dataItem = item.data_tabela || item.data_referencia || '-';
-                        subtotalSimples += total;
+                        const grupo = item.grupo;
+                        subtotalSimples += item.total;
 
                         if (grupo !== currentGroup) {
                             currentGroup = grupo;
@@ -8320,7 +8402,7 @@
                         }
 
                         // Descrição com Memória
-                        const descChildren = [new Paragraph({ children: [new TextRun({ text: item.descricao_insumo || item.descricao || '-', bold: true, size: 16 })], alignment: AlignmentType.JUSTIFIED })];
+                        const descChildren = [new Paragraph({ children: [new TextRun({ text: item.descricao, bold: true, size: 16 })], alignment: AlignmentType.JUSTIFIED })];
 
                         if (item.retroativo) {
                             const r = item.retroativo;
@@ -8338,16 +8420,23 @@
                             }));
                         }
 
+                        // Lógica de exibição da Fonte com Referência no DOCX
+                        const fonteChildren = [new Paragraph({ children: [new TextRun({ text: item.origem, size: 14 })], alignment: AlignmentType.CENTER })];
+                        if ((item.origem === 'SEINFRA' || item.origem === 'SINAPI') && item.referencia) {
+                            const refLabel = item.referencia.toLowerCase().includes('deson') ? 'Desonerada' : 'Onerada';
+                            fonteChildren.push(new Paragraph({ children: [new TextRun({ text: refLabel, size: 10, color: "6C757D" })], alignment: AlignmentType.CENTER }));
+                        }
+
                         itemRows.push(new TableRow({
                             children: [
-                                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: item.origem || '-', size: 14 })], alignment: AlignmentType.CENTER })] }),
-                                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: dataItem, size: 14 })], alignment: AlignmentType.CENTER })] }),
-                                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: item.codigo_insumo || item.codigo || '-', bold: true, size: 16 })], alignment: AlignmentType.CENTER })] }),
+                                new TableCell({ children: fonteChildren }),
+                                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: item.versao, size: 14 })], alignment: AlignmentType.CENTER })] }),
+                                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: item.codigo, bold: true, size: 16 })], alignment: AlignmentType.CENTER })] }),
                                 new TableCell({ children: descChildren }),
-                                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: item.unidade || '-', size: 14 })], alignment: AlignmentType.CENTER })] }),
-                                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: formatarNumero(coef, 4), size: 14 })], alignment: AlignmentType.CENTER })] }),
-                                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: formatarNumero(precoUnit), size: 14 })], alignment: AlignmentType.RIGHT })] }),
-                                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: formatarNumero(total), bold: true, size: 14 })], alignment: AlignmentType.RIGHT })] })
+                                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: item.unidade, size: 14 })], alignment: AlignmentType.CENTER })] }),
+                                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: formatarNumero(item.coeficiente, 4), size: 14 })], alignment: AlignmentType.CENTER })] }),
+                                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: formatarNumero(item.preco_unitario), size: 14 })], alignment: AlignmentType.RIGHT })] }),
+                                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: formatarNumero(item.total), bold: true, size: 14 })], alignment: AlignmentType.RIGHT })] })
                             ]
                         }));
                     });
@@ -8953,8 +9042,9 @@
                             </div>
                         </div>
                         <div class="modal-footer py-2 bg-light d-print-none">
-                            <button type="button" class="btn btn-outline-success btn-sm" onclick="window.print()">
-                                <i class="bi bi-printer me-1"></i> Imprimir / Salvar PDF
+                            <button type="button" class="btn btn-outline-success btn-sm"
+                                onclick="gerarPDF_Profissional(currentCompositionData)">
+                                <i class="bi bi-download me-1"></i> Baixar
                             </button>
                             <button type="button" class="btn btn-secondary btn-sm ms-auto"
                                 data-bs-dismiss="modal">Fechar</button>
