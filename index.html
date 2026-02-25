@@ -7702,7 +7702,7 @@
                         const fCur = (v) => Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                         const fNum4 = (v) => Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
 
-                        // 1. Cabeçalho Institucional SOP
+                        // 1. Cabeçalho Institucional SOP (Fidelidade Absoluta com a Modal)
                         doc.setFillColor(...verdeSOP); doc.roundedRect(14, 10, 20, 10, 1, 1, 'F');
                         doc.setTextColor(255, 255, 255); doc.setFontSize(9); doc.setFont("helvetica", "bold");
                         doc.text("SOP-CE", 24, 16.5, { align: "center" });
@@ -7715,28 +7715,36 @@
 
                         doc.setDrawColor(200); doc.line(14, 22, 196, 22);
 
-                        // 2. Metadados Grid (Ocupando todo o espaço com alinhamento proporcional)
+                        // 2. Metadados Grid - Clone exato da reestruturação da Modal
                         doc.setDrawColor(220); doc.setFillColor(255);
                         doc.rect(14, 25, 182, 16, 'D');
+                        doc.line(45, 25, 45, 41); // Divisória vertical 1
+                        doc.line(165, 25, 165, 41); // Divisória vertical 2
 
                         doc.setFontSize(6); doc.setTextColor(150);
                         doc.text("CÓDIGO / VERSÃO", 16, 29);
-                        doc.text("DESCRIÇÃO DA COMPOSIÇÃO", 50, 29);
-                        doc.text("UNID.", 158, 29, { align: "center" });
-                        doc.text("BDI / DESC.", 185, 29, { align: "center" });
+                        doc.text("DESCRIÇÃO DA COMPOSIÇÃO", 47, 29);
+                        doc.text("DADOS TÉCNICOS", 181, 29, { align: "center" });
 
                         doc.setFontSize(8); doc.setTextColor(0); doc.setFont("helvetica", "bold");
-                        doc.text(`${rawInput.codigo || 'S/C'} ${rawInput.versao_atual || ''}`, 16, 35);
+                        doc.text(rawInput.codigo || 'S/C', 16, 34);
+                        if (rawInput.versao_atual) {
+                            doc.setFontSize(6); doc.text(rawInput.versao_atual, 16, 38);
+                        }
 
-                        const descLines = doc.splitTextToSize((rawInput.descricao || '').toUpperCase(), 98);
-                        doc.text(descLines, 50, 35);
+                        doc.setFontSize(8.5);
+                        const descLines = doc.splitTextToSize((rawInput.descricao || '').toUpperCase(), 115);
+                        doc.text(descLines, 47, 34, { align: "justify" });
 
-                        doc.setFontSize(9);
-                        doc.text(rawInput.unidade || '-', 158, 35, { align: "center" });
+                        doc.setFontSize(7); doc.setFont("helvetica", "normal");
+                        doc.setTextColor(100); doc.text("UNID:", 167, 33);
+                        doc.setTextColor(0); doc.setFont("helvetica", "bold"); doc.text(rawInput.unidade || '-', 194, 33, { align: "right" });
 
-                        doc.setFontSize(8);
-                        doc.setTextColor(0, 80, 200); doc.text(`${rawInput.bdi || '0,00'}%`, 185, 34, { align: "center" });
-                        doc.setTextColor(200, 0, 0); doc.text(`${rawInput.desconto || '0,00'}%`, 185, 38, { align: "center" });
+                        doc.setTextColor(100); doc.setFont("helvetica", "normal"); doc.text("BDI:", 167, 36.5);
+                        doc.setTextColor(0, 80, 200); doc.setFont("helvetica", "bold"); doc.text(`${rawInput.bdi || '0,00'}%`, 194, 36.5, { align: "right" });
+
+                        doc.setTextColor(100); doc.setFont("helvetica", "normal"); doc.text("DESC:", 167, 40);
+                        doc.setTextColor(200, 0, 0); doc.setFont("helvetica", "bold"); doc.text(`${rawInput.desconto || '0,00'}%`, 194, 40, { align: "right" });
 
                         // 3. Preparação dos Itens (Utilizando normalizarItemParaPDF para consistência total com a Modal)
                         const itensRaw = rawInput.itens || [];
@@ -7767,8 +7775,8 @@
                             itensAgrupados[g].forEach(i => {
                                 let fonteStr = i.origem;
                                 if ((i.origem === 'SEINFRA' || i.origem === 'SINAPI') && i.referencia) {
-                                    const refLabel = i.referencia.toLowerCase().includes('deson') ? 'Deson.' : 'Oner.';
-                                    fonteStr += `\n(${refLabel})`;
+                                    const refLabel = i.referencia.toLowerCase().includes('deson') ? 'Desonerada' : 'Onerada';
+                                    fonteStr += `\n${refLabel}`;
                                 }
 
                                 body.push([
@@ -7804,14 +7812,14 @@
                             styles: { fontSize: 7, cellPadding: 1.5, valign: 'middle', overflow: 'linebreak' },
                             headStyles: { fillColor: cinzaHeader, textColor: 0, halign: 'center', fontStyle: 'bold' },
                             columnStyles: {
-                                0: { halign: 'center', cellWidth: 15 },
-                                1: { halign: 'center', cellWidth: 15 },
-                                2: { halign: 'center', cellWidth: 18 },
-                                3: { cellWidth: 70 },
-                                4: { halign: 'center', cellWidth: 12 },
-                                5: { halign: 'center', cellWidth: 17 },
-                                6: { halign: 'right', cellWidth: 17 },
-                                7: { halign: 'right', cellWidth: 18 }
+                                0: { halign: 'center', cellWidth: 'auto' }, // FONTE
+                                1: { halign: 'center', cellWidth: 'auto' }, // VERSÃO
+                                2: { halign: 'center', cellWidth: 'auto' }, // CÓDIGO
+                                3: { cellWidth: '*' }, // DESCRIÇÃO DO INSUMO (Ocupa o resto)
+                                4: { halign: 'center', cellWidth: 'auto' }, // UNID
+                                5: { halign: 'center', cellWidth: 'auto' }, // COEF.
+                                6: { halign: 'right', cellWidth: 'auto' },  // P. UNIT.
+                                7: { halign: 'right', cellWidth: 'auto' }   // TOTAL
                             },
                             margin: { left: 14, right: 14 },
                             didDrawPage: (data) => {
@@ -8175,37 +8183,36 @@
                                 </div>
                             </div>
 
-                            <!-- Metadados da Composição Melhorados -->
+                            <!-- Metadados da Composição Reestruturados -->
                             <div class="row g-0 mb-4 p-3 border rounded bg-white shadow-sm align-items-stretch">
-                                <!-- Lado Esquerdo: Identificação -->
-                                <div class="col-md-8 d-flex flex-column justify-content-center pe-3 border-end">
-                                    <div class="mb-2">
-                                        <label class="text-muted fw-bold text-uppercase d-block mb-1" style="font-size: 0.65rem; letter-spacing: 0.5px;">CÓDIGO / VERSÃO</label>
-                                        <div class="d-flex align-items-center">
-                                            <span class="fw-bold text-dark" style="font-size: 0.9rem;">${codigo}</span>
-                                            ${dados.versao_atual ? `<span class="badge bg-secondary ms-2" style="font-size: 0.6rem; padding: 2px 5px;">${dados.versao_atual}</span>` : ''}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label class="text-muted fw-bold text-uppercase d-block mb-1" style="font-size: 0.65rem; letter-spacing: 0.5px;">DESCRIÇÃO DA COMPOSIÇÃO</label>
-                                        <div class="fw-bold text-dark text-uppercase" style="font-size: 0.9rem; line-height: 1.3; text-align: justify;">${descricao}</div>
+                                <!-- Lado Esquerdo: Identificação (Reduzido para col-2) -->
+                                <div class="col-md-2 d-flex flex-column justify-content-center pe-2 border-end">
+                                    <div class="mb-1">
+                                        <label class="text-muted fw-bold text-uppercase d-block mb-1" style="font-size: 0.6rem; letter-spacing: 0.5px;">CÓDIGO / VERSÃO</label>
+                                        <div class="fw-bold text-dark" style="font-size: 0.85rem;">${codigo}</div>
+                                        ${dados.versao_atual ? `<span class="badge bg-secondary mt-1" style="font-size: 0.55rem; width: fit-content; padding: 2px 5px;">${dados.versao_atual}</span>` : ''}
                                     </div>
                                 </div>
-                                <!-- Lado Direito: Índices e Unidade -->
-                                <div class="col-md-4 d-flex align-items-center justify-content-between ps-3">
-                                    <div class="text-center flex-grow-1 border-end">
-                                        <label class="text-muted fw-bold text-uppercase d-block mb-1" style="font-size: 0.65rem; letter-spacing: 0.5px;">UNID.</label>
-                                        <span class="fw-bold text-dark fs-4">${unidade}</span>
+                                
+                                <!-- Centro: Descrição (Expandido para col-8 com texto justificado) -->
+                                <div class="col-md-8 px-4 d-flex flex-column justify-content-center border-end">
+                                    <label class="text-muted fw-bold text-uppercase d-block mb-1" style="font-size: 0.6rem; letter-spacing: 0.5px;">DESCRIÇÃO DA COMPOSIÇÃO</label>
+                                    <div class="fw-bold text-dark text-uppercase" style="font-size: 0.95rem; line-height: 1.3; text-align: justify;">${descricao}</div>
+                                </div>
+
+                                <!-- Lado Direito: Unidade e Taxas (Reduzido para col-2) -->
+                                <div class="col-md-2 d-flex flex-column justify-content-center ps-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <span class="text-muted fw-bold text-uppercase" style="font-size: 0.6rem;">UNID:</span>
+                                        <span class="fw-bold text-dark" style="font-size: 1rem;">${unidade}</span>
                                     </div>
-                                    <div class="text-end ps-3" style="min-width: 100px;">
-                                        <div class="mb-1">
-                                            <span class="text-muted fw-bold me-2" style="font-size: 0.7rem;">BDI:</span>
-                                            <span class="fw-bold text-primary" style="font-size: 1rem;">${bdiText}</span>
-                                        </div>
-                                        <div>
-                                            <span class="text-muted fw-bold me-2" style="font-size: 0.7rem;">DESC:</span>
-                                            <span class="fw-bold text-danger" style="font-size: 1rem;">${descText}</span>
-                                        </div>
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <span class="text-muted fw-bold text-uppercase" style="font-size: 0.6rem;">BDI:</span>
+                                        <span class="fw-bold text-primary" style="font-size: 0.9rem;">${bdiText}</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="text-muted fw-bold text-uppercase" style="font-size: 0.6rem;">DESC:</span>
+                                        <span class="fw-bold text-danger" style="font-size: 0.9rem;">${descText}</span>
                                     </div>
                                 </div>
                             </div>
