@@ -657,6 +657,11 @@
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
             }
+
+            .print-page-break {
+                page-break-before: always !important;
+                margin-top: 2cm !important;
+            }
         }
 
         .panel-subheader-title {
@@ -3090,6 +3095,9 @@
                 data-bs-target="#modalNovaVersao"></button>
 
             <script>
+                // Variáveis globais de estado
+                let currentCompositionData = null;
+
 
                 /* --------------------------------------------------------------
                    OVERLAY DE BOAS-VINDAS / LOGIN (TELA INICIAL)
@@ -6370,7 +6378,7 @@
                                             </div>
                                         </div>
                                         <div class="orcamento-actions">
-                                            <button class="btn btn-action-baixar" onclick="${isAnalytical ? `baixarComposicaoPDF(${obra.id})` : `prepararExportacaoComposicao(${obra.id}, '${obra.arquivo_url || ''}')`}" title="Baixar Arquivo"><i class="bi bi-download"></i> Baixar</button>
+                                            <button class="btn btn-action-baixar" onclick="${isAnalytical ? `visualizarComposicao(${obra.id}, null, { autoPrint: true })` : `prepararExportacaoComposicao(${obra.id}, '${obra.arquivo_url || ''}')`}" title="Imprimir Composição"><i class="bi bi-printer"></i> Imprimir</button>
                                             <button class="btn btn-action-icon ms-1" onclick="visualizarComposicao(${obra.id}, '${obra.arquivo_url || ''}')" title="Visualizar Documento"><i class="bi bi-eye-fill text-primary"></i></button>
                                             ${(isOwner || isAdmin) ? `
                                                 ${isAnalytical ?
@@ -7487,24 +7495,7 @@
                 }
                 document.addEventListener('DOMContentLoaded', atualizarSelectVersao);
 
-                async function baixarComposicaoPDF(id) {
-                    try {
-                        const { data, error } = await sbClient
-                            .from('composicoes_biblioteca')
-                            .select('*')
-                            .eq('id', id)
-                            .single();
-
-                        if (error || !data) throw new Error("Composição não encontrada.");
-
-                        // Chama a função profissional de PDF que já tem o timbrado official
-                        await gerarPDF_Profissional(data, { output: 'save' });
-
-                    } catch (err) {
-                        console.error(err);
-                        alert("Erro ao baixar PDF: " + err.message);
-                    }
-                }
+                // Removida baixarComposicaoPDF pois agora usamos a impressão HTML unificada
 
 
 
@@ -7638,7 +7629,6 @@
                 // FUNÇÃO GERAR PDF (Profissional) - Com Template SOP (pdf-lib)
                 // --------------------------------------------------------------
                 async function gerarPDF_Profissional(rawInput, options = {}) {
-                    // Normalizador de Entrada: Garante que dados próprios e SOP tenham a mesma raiz
                     const dados = {
                         codigo: rawInput?.codigo || rawInput?.meta?.codigo || 'S/C',
                         descricao: rawInput?.descricao || rawInput?.meta?.descricao || 'SEM DESCRIÇÃO',
@@ -7648,671 +7638,200 @@
                         desconto: rawInput?.desconto || rawInput?.meta?.desconto || '0,00',
                         itens: rawInput?.itens || []
                     };
-                    // options: { output: 'save' | 'open' }
                     const mode = options.output || 'save';
                     const { jsPDF } = window.jspdf;
-                    const { PDFDocument } = PDFLib;
 
-                    // 1. Carregar o PDF de Fundo (Timbrado)
-                    let backgroundPdfBytes = null;
-                    try {
-                        const bgUrl = "https://qexdnxqmiaarzwwwrcor.supabase.co/storage/v1/object/public/sop_inicial/Timbrado_em_branco-Vertical2023-2026.pdf";
-                        const res = await fetch(bgUrl);
-                        if (!res.ok) throw new Error("Falha ao baixar timbrado");
-                        backgroundPdfBytes = await res.arrayBuffer();
-                    } catch (e) {
-                        console.error("Erro ao carregar background:", e);
-                        alert("Atenção: Não foi possível carregar o timbrado oficial. O PDF será gerado sem fundo.");
-                    }
-
-                    // 2. Gerar Conteúdo com jsPDF
                     const doc = new jsPDF();
                     const larguraPagina = doc.internal.pageSize.getWidth();
+                    const verdeSOP = [0, 143, 61];
 
-                    // --- TÍTULO (Ajustado para o Timbrado) ---
+                    // --- CABEÇALHO SIMPLIFICADO (Igual ao Modal) ---
+                    let yPos = 15;
+
+                    // Box SOP-CE (Verde Retangular)
+                    doc.setFillColor(...verdeSOP);
+                    doc.roundedRect(14, yPos, 22, 12, 1, 1, "F");
+                    doc.setTextColor(255, 255, 255);
                     doc.setFont("helvetica", "bold");
-                    doc.setFontSize(16);
-                    doc.setTextColor(0, 143, 61); // Verde SOP
-                    doc.text("COMPOSIÇÃO ANALÍTICA", larguraPagina / 2, 45, { align: "center" });
-
-                    // --- DADOS DA COMPOSIÇÃO ---
-                    let yPos = 55;
                     doc.setFontSize(10);
-                    doc.setTextColor(0, 0, 0);
+                    doc.text("SOP-CE", 25, yPos + 7.5, { align: "center" });
 
-                    const formatarDataExtenso = (dataStr) => {
-                        if (!dataStr) return '-';
-                        const meses = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
-                        let dia, mes, ano;
-                        if (dataStr.includes('-')) {
-                            const partes = dataStr.split('-');
-                            if (partes.length === 3) { ano = partes[0]; mes = parseInt(partes[1]) - 1; dia = partes[2]; }
-                        } else {
-                            const partes = dataStr.split('/');
-                            if (partes.length >= 2) {
-                                dia = partes.length === 3 ? partes[0] : '01';
-                                mes = parseInt(partes.length === 3 ? partes[1] : partes[0]) - 1;
-                                ano = partes.length === 3 ? partes[2] : partes[1];
-                            }
-                        }
-                        if (dia && meses[mes] && ano) return `${dia} de ${meses[mes]} de ${ano}`;
-                        return dataStr;
-                    };
+                    // Texto Governo
+                    doc.setTextColor(...verdeSOP);
+                    doc.setFontSize(10);
+                    doc.text("ESTADO DO CEARÁ", 40, yPos + 5);
+                    doc.setTextColor(33, 37, 41);
+                    doc.setFontSize(7.5);
+                    doc.text("SUPERINTENDÊNCIA DE OBRAS PÚBLICAS", 40, yPos + 9);
 
-                    const addField = (label, value, x, y) => {
-                        doc.setFont("helvetica", "bold");
-                        doc.text(label, x, y);
-                        doc.setFont("helvetica", "normal");
-                        doc.text(value, x + doc.getTextWidth(label) + 2, y);
-                    };
+                    // Lado Direito
+                    doc.setTextColor(33, 37, 41);
+                    doc.setFontSize(12);
+                    doc.text("COMPOSIÇÃO ANALÍTICA", larguraPagina - 14, yPos + 5, { align: "right" });
+                    doc.setTextColor(108, 117, 125);
+                    doc.setFontSize(6.5);
+                    doc.text("GEROA - GERÊNCIA DE ORÇAMENTOS E AVALIAÇÃO DE IMÓVEIS", larguraPagina - 14, yPos + 9, { align: "right" });
 
-                    addField("CÓDIGO:", dados.codigo || '-', 20, yPos);
-                    addField("UNIDADE:", dados.unidade || '-', 150, yPos);
+                    yPos += 16;
+                    doc.setDrawColor(222, 226, 230);
+                    doc.line(14, yPos, larguraPagina - 14, yPos);
                     yPos += 6;
 
-                    doc.setFont("helvetica", "bold"); doc.text("DESCRIÇÃO:", 20, yPos);
-                    doc.setFont("helvetica", "normal");
-                    const desc = dados.descricao || '-';
-                    const descLines = doc.splitTextToSize(desc, 150);
-                    doc.text(descLines, 45, yPos);
-                    yPos += (descLines.length * 4) + 2;
+                    // --- METADADOS (Grid Simples) ---
+                    const drawMetaField = (label, value, x, w, isLast = false) => {
+                        doc.setFontSize(6);
+                        doc.setTextColor(108, 117, 125);
+                        doc.setFont("helvetica", "bold");
+                        doc.text(label.toUpperCase(), x + 2, yPos + 4);
 
-                    const dataExtenso = formatarDataExtenso(dados.data_base);
-                    if (dataExtenso) addField("DATA BASE:", dataExtenso, 20, yPos);
+                        doc.setFontSize(8);
+                        doc.setTextColor(33, 37, 41);
+                        doc.setFont("helvetica", "bold");
+                        const valText = doc.splitTextToSize(value.toString().toUpperCase(), w - 4);
+                        doc.text(valText, x + 2, yPos + 9);
 
-                    addField("BDI:", (dados.bdi || '0,00') + "%", 100, yPos);
-                    addField("DESCONTO:", (dados.desconto || '0,00') + "%", 150, yPos);
+                        doc.setDrawColor(222, 226, 230);
+                        doc.rect(x, yPos, w, 12, "D");
+                    };
 
-                    yPos += 8;
+                    drawMetaField("Código", dados.codigo, 14, 25);
+                    drawMetaField("Descrição da Composição", dados.descricao, 39, 105);
+                    drawMetaField("Unid.", dados.unidade, 144, 15);
 
-                    // --- TABELA ---
-                    const labelGrupos = { 'MAO_DE_OBRA': 'MÃO DE OBRA', 'MATERIAL': 'MATERIAL', 'EQUIPAMENTOS': 'EQUIPAMENTOS', 'SERVICO': 'SERVIÇO' };
+                    // Box Taxas
+                    doc.rect(159, yPos, larguraPagina - 159 - 14, 12, "D");
+                    doc.setFontSize(5.5);
+                    doc.setTextColor(108, 117, 125);
+                    doc.text("TAXAS:", 161, yPos + 3.5);
+                    doc.setFontSize(6.5);
+                    doc.setTextColor(0, 123, 255);
+                    doc.text(`BDI: ${dados.bdi}%`, 161, yPos + 7);
+                    doc.setTextColor(220, 53, 69);
+                    doc.text(`DESC: ${dados.desconto}%`, 161, yPos + 10.5);
 
-                    const formatarMoeda = (valor) => Number(valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-                    const formatarNumero = (valor) => Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    yPos += 18;
 
-                    // Normalização
-                    const itensNormalizados = (dados.itens || []).map(item => normalizarItemParaPDF(item));
+                    // --- TABELA DE ITENS ---
+                    const formatarNumero = (v, d = 2) => (Number(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
 
-                    // Cálculo Dinâmico de Subtotais para o Rodapé
-                    const subtotaisPorGrupo = itensNormalizados.reduce((acc, item) => {
-                        const grupo = labelGrupos[item.grupo] || (item.grupo || 'MATERIAL').replace(/_/g, ' ');
-                        acc[grupo] = (acc[grupo] || 0) + Number(item.total || 0);
-                        return acc;
-                    }, {});
-
-                    // Ordenação para exibição
-                    const itensOrdenados = [...itensNormalizados].sort((a, b) => {
+                    const itensOrdenados = [...(dados.itens || [])].sort((a, b) => {
                         const ordem = { 'MAO_DE_OBRA': 1, 'MATERIAL': 2, 'EQUIPAMENTOS': 3, 'SERVICO': 4 };
-                        return (ordem[a.grupo] || 99) - (ordem[b.grupo] || 99);
+                        return (ordem[a.tipo_grupo || a.grupo] || 99) - (ordem[b.tipo_grupo || b.grupo] || 99);
                     });
 
                     let tableBody = [];
                     let currentGroup = '';
-                    const itensComMemoria = [];
+                    let totalSimples = 0;
 
                     itensOrdenados.forEach(item => {
-                        const itemGroup = labelGrupos[item.grupo] || (item.grupo || 'MATERIAL').replace(/_/g, ' ');
+                        const grupo = item.tipo_grupo || item.grupo || 'GERAL';
+                        const precoUnit = Number(item.preco_unitario || item.preco || 0);
+                        const coef = Number(item.coeficiente || 0);
+                        const total = Number(item.total || item.total_item || (precoUnit * coef)) || 0;
+                        const dataItem = item.data_tabela || item.data_referencia || '-';
 
-                        if (itemGroup !== currentGroup) {
-                            currentGroup = itemGroup;
-                            tableBody.push([{ content: currentGroup, colSpan: 7, styles: { halign: 'center', fontStyle: 'bold', fillColor: [240, 240, 240] } }]);
+                        totalSimples += total;
+
+                        if (grupo !== currentGroup) {
+                            currentGroup = grupo;
+                            tableBody.push([{
+                                content: currentGroup.toUpperCase(),
+                                colSpan: 8,
+                                styles: { halign: 'center', fontStyle: 'bold', fillColor: [242, 242, 242], textColor: [50, 50, 50], fontSize: 7, cellPadding: 1.5 }
+                            }]);
                         }
 
-                        // Armazenar para memória de cálculo se for MERCADO
+                        // Memória de Cálculo (Mantida Conforme Modal)
+                        let fullDesc = item.descricao_insumo || item.descricao || '-';
                         if (item.retroativo) {
-                            itensComMemoria.push({ item, origem: item.origem });
+                            const r = item.retroativo;
+                            const dCot = r.dataIni ? r.dataIni.split('-').reverse().join('/') : '-';
+                            const dBase = r.dataFin ? r.dataFin.split('-').reverse().join('/') : '-';
+                            const fator = (Number(r.indFin) / Number(r.indIni)) || 1;
+
+                            fullDesc += `\n\n[MEMÓRIA DE CÁLCULO - RETROAÇÃO]\nValor Cotado: R$ ${formatarNumero(r.base)} | Data: ${dCot} | Índice: ${formatarNumero(r.indIni, 3)}\nData-Base: ${dBase} | Índice Base: ${formatarNumero(r.indFin, 3)} | Fator: ${fator.toFixed(4)}`;
                         }
 
                         tableBody.push([
-                            `${item.origem}\n${item.versao}`,
-                            item.codigo,
-                            item.descricao,
-                            item.unidade,
-                            formatarNumero(item.coeficiente),
-                            formatarNumero(item.preco_unitario),
-                            formatarNumero(item.total)
+                            item.origem || '-',
+                            dataItem,
+                            item.codigo_insumo || item.codigo || '-',
+                            { content: fullDesc, styles: { halign: 'justify' } },
+                            item.unidade || '-',
+                            formatarNumero(coef, 4),
+                            formatarNumero(precoUnit),
+                            { content: formatarNumero(total), styles: { fontStyle: 'bold' } }
                         ]);
                     });
 
                     doc.autoTable({
                         startY: yPos,
-                        head: [['Origem', 'Código', 'Descrição', 'Unid', 'Coef', 'Preço Unit.', 'Total (R$)']],
+                        head: [['ORIGEM', 'DATA', 'CÓDIGO', 'DESCRIÇÃO DO INSUMO', 'UNID', 'COEF.', 'P. UNIT.', 'TOTAL']],
                         body: tableBody,
                         theme: 'grid',
-                        styles: { fontSize: 8, cellPadding: 2 },
-                        headStyles: { fillColor: [51, 51, 51], textColor: [255, 255, 255] },
+                        styles: { fontSize: 7, cellPadding: 1.5, valign: 'middle' },
+                        headStyles: { fillColor: [52, 58, 64], textColor: [255, 255, 255], halign: 'center', fontStyle: 'bold' },
                         columnStyles: {
-                            0: { cellWidth: 20 },
-                            1: { cellWidth: 20 },
-                            2: { cellWidth: 'auto' },
-                            3: { cellWidth: 10, halign: 'center' },
-                            4: { cellWidth: 14, halign: 'center' },
-                            5: { cellWidth: 22, halign: 'right' },
-                            6: { cellWidth: 22, halign: 'right' }
+                            0: { cellWidth: 14, halign: 'center' },
+                            1: { cellWidth: 14, halign: 'center' },
+                            2: { cellWidth: 16, halign: 'center' },
+                            3: { cellWidth: 'auto' },
+                            4: { cellWidth: 10, halign: 'center' },
+                            5: { cellWidth: 14, halign: 'center' },
+                            6: { cellWidth: 18, halign: 'right' },
+                            7: { cellWidth: 18, halign: 'right' }
                         },
-                        margin: { top: 50, bottom: 20 }
+                        margin: { left: 14, right: 14, top: 40, bottom: 20 },
+                        didDrawPage: (data) => {
+                            // Rodapé Simples
+                            doc.setFontSize(6);
+                            doc.setTextColor(150);
+                            doc.text(`Gerado via Painel GECOPE/SOP | Página ${data.pageNumber} | ${new Date().toLocaleString('pt-BR')}`, 14, doc.internal.pageSize.height - 10);
+                        }
                     });
 
-                    // --- TOTAIS ---
-                    let finalY = doc.lastAutoTable.finalY + 10;
-                    if (finalY > 230) { doc.addPage(); finalY = 50; }
+                    // --- RODAPÉ DE TOTAIS (Estilo Modal) ---
+                    let finalY = doc.lastAutoTable.finalY + 5;
+                    const checkSpace = (h) => { if (finalY + h > 280) { doc.addPage(); finalY = 20; } };
 
-                    const totalSemBDI = Object.values(subtotaisPorGrupo).reduce((a, b) => a + b, 0);
-                    const bdiVal = parseFloat((dados.bdi || '0').toString().replace(',', '.')) / 100 || 0;
-                    const descVal = parseFloat((dados.desconto || '0').toString().replace(',', '.')) / 100 || 0;
-
-                    const totalComBDI = totalSemBDI * (1 + bdiVal);
-                    const valorBDI = totalComBDI - totalSemBDI;
+                    const bdiVal = parseFloat((dados.bdi || 0).toString().replace(',', '.')) / 100;
+                    const descVal = parseFloat((dados.desconto || 0).toString().replace(',', '.')) / 100;
+                    const valorBDI = totalSimples * bdiVal;
+                    const totalComBDI = totalSimples + valorBDI;
                     const valorDesconto = totalComBDI * descVal;
-                    const totalGeral = totalComBDI - valorDesconto;
+                    const precoFinal = totalComBDI - valorDesconto;
 
-                    doc.setFontSize(9);
-                    doc.setTextColor(50, 50, 50);
-
-                    // Renderizar Subtotais Dinâmicos
-                    Object.entries(subtotaisPorGrupo).forEach(([grupo, valor]) => {
-                        if (valor > 0) {
-                            doc.setFont("helvetica", "normal");
-                            doc.text(`Total ${grupo}:`, 140, finalY);
-                            doc.text(formatarMoeda(valor), 195, finalY, { align: 'right' });
-                            finalY += 5;
-                        }
-                    });
-
-                    // BDI
-                    if (valorBDI > 0) {
-                        doc.setFont("helvetica", "bold");
-                        doc.text(`BDI (${(bdiVal * 100).toFixed(2)}%):`, 140, finalY);
-                        doc.text(formatarMoeda(valorBDI), 195, finalY, { align: 'right' });
+                    const drawFooterLine = (label, value, color = [50, 50, 50], isBold = false) => {
+                        checkSpace(5);
+                        doc.setFontSize(7);
+                        doc.setTextColor(...color);
+                        doc.setFont("helvetica", isBold ? "bold" : "normal");
+                        doc.text(label.toUpperCase(), larguraPagina - 55, finalY);
+                        doc.text(`R$ ${formatarNumero(value)}`, larguraPagina - 14, finalY, { align: 'right' });
                         finalY += 5;
-                    }
+                    };
 
-                    // Desconto
-                    if (valorDesconto > 0) {
-                        doc.setFont("helvetica", "bold");
-                        doc.text(`Desconto (${(descVal * 100).toFixed(2)}%):`, 140, finalY);
-                        doc.text(formatarMoeda(valorDesconto), 195, finalY, { align: 'right' });
-                        finalY += 5;
-                    }
+                    drawFooterLine("Total Simples", totalSimples);
+                    if (valorBDI > 0) drawFooterLine(`BDI Aplicado (${dados.bdi}%)`, valorBDI, [0, 123, 255]);
+                    if (valorDesconto > 0) drawFooterLine(`Desconto Aplicado (${dados.desconto}%)`, valorDesconto, [220, 53, 69]);
 
-                    // Linha Final: PREÇO TOTAL UNITÁRIO (Premium Style)
+                    // Preço Final
+                    checkSpace(12);
                     finalY += 2;
-                    doc.setFontSize(12);
-                    doc.setFont("helvetica", "bold");
-                    doc.setTextColor(0, 143, 61); // Verde Institucional SOP
-                    doc.text("PREÇO TOTAL UNITÁRIO:", 105, finalY);
-                    doc.text(formatarMoeda(totalGeral), 195, finalY, { align: 'right' });
-
-                    // --- MEMÓRIA DE CÁLCULO DETALHADA (Restaurada) ---
-                    if (itensComMemoria.length > 0) {
-                        doc.addPage();
-
-                        // Layout Constants
-                        const mLeft = 14;
-                        const mWidth = larguraPagina - 28;
-                        let cy = 35;
-
-                        // Title 1
-                        doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(0, 50, 100);
-                        doc.text("Metodologia de Cálculo de Insumo Não Tabelado (Cotação de Mercado)", mLeft, cy);
-                        cy += 8;
-
-                        // Body 1 & 2 (Justificado)
-                        doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(0);
-                        const txt1 = "O presente custo unitário foi obtido através de cotação de mercado, visto que o insumo não consta nas tabelas de referência oficiais (SINAPI/SICRO/ORSE). Para garantir a integridade e a homogeneidade financeira do orçamento, foi realizado o processo de retroação (deflacionamento) do valor cotado.";
-                        const txt2 = "O objetivo é compatibilizar o preço de mercado atual (data da cotação) com a Data-Base da Licitação/Orçamento, expurgando a inflação acumulada no período. Desta forma, todos os custos do orçamento permanecem referenciados no mesmo marco temporal, permitindo a correta aplicação de reajustes contratuais futuros.";
-
-                        const textOptions = { maxWidth: mWidth, align: "justify", lineHeightFactor: 1.5 };
-
-                        doc.text(txt1, mLeft, cy, textOptions);
-                        const dim1 = doc.getTextDimensions(txt1, textOptions);
-                        cy += dim1.h + 8;
-
-                        doc.text(txt2, mLeft, cy, textOptions);
-                        const dim2 = doc.getTextDimensions(txt2, textOptions);
-                        cy += dim2.h + 12;
-
-                        // Title 2
-                        doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(0, 50, 100);
-                        doc.text("Memória de Cálculo e Compatibilização de Preços", mLeft, cy);
-                        cy += 8;
-
-                        // Body 3 & 4
-                        doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(0);
-                        const txt3 = "Considerando a defasagem temporal entre a data desta cotação de mercado e a data-base original deste orçamento, aplicou-se a retroação financeira dos valores.";
-                        const txt4 = "O cálculo consiste na divisão do valor cotado pelo índice inflacionário acumulado no período (ou pela razão entre os índices das datas final e inicial), utilizando o indexador informado na tabela abaixo. Este procedimento visa equiparar o poder de compra da moeda à época da licitação, demonstrado analiticamente abaixo:";
-
-                        doc.text(txt3, mLeft, cy, textOptions);
-                        const dim3 = doc.getTextDimensions(txt3, textOptions);
-                        cy += dim3.h + 8;
-
-                        doc.text(txt4, mLeft, cy, textOptions);
-                        const dim4 = doc.getTextDimensions(txt4, textOptions);
-                        cy += dim4.h + 12;
-
-                        // Loop Items
-                        itensComMemoria.forEach(({ item }) => {
-                            if (cy > doc.internal.pageSize.getHeight() - 60) { doc.addPage(); cy = 50; }
-
-                            const r = item.retroativo;
-                            if (!r) return; // Proteção: Pula se r estiver undefined (Garante que erro 'base' não ocorra)
-
-                            const baseVal = parseFloat(r.base || 0);
-                            const indCotacao = parseFloat(r.indIni || 1); // Source (Ini)
-                            const indDataBase = parseFloat(r.indFin || 1); // Target (Fin)
-
-                            // Calc Logic: Fator = Ind.Base / Ind.Cotacao
-                            const fator = indDataBase / indCotacao;
-                            const valAdotado = Math.round((baseVal * fator) * 100) / 100;
-
-                            const dCotacao = r.dataIni ? r.dataIni.split('-').reverse().join('/') : '-';
-                            const dDataBase = r.dataFin ? r.dataFin.split('-').reverse().join('/') : '-';
-
-                            doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(0);
-                            doc.text(`Item: ${item.codigo} - ${item.descricao}`, mLeft, cy);
-                            cy += 5;
-
-                            // Tabela Detalhada com os Parâmetros (A-G)
-                            const rows = [
-                                ["A. Valor Cotado (Preço de Mercado)", `R$ ${baseVal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`],
-                                ["B. Data da Cotação", dCotacao],
-                                ["C. Índice na Data da Cotação", indCotacao.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })],
-                                ["D. Data-Base do Orçamento", dDataBase],
-                                ["E. Índice na Data-Base", indDataBase.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })],
-                                ["F. Fator de Ajuste (E ÷ C)", fator.toLocaleString('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 4 })],
-                                ["G. Preço Adotado (A x F)", `R$ ${valAdotado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`]
-                            ];
-
-                            doc.autoTable({
-                                head: [["Parâmetro", "Valor / Descrição"]],
-                                body: rows,
-                                startY: cy,
-                                theme: 'grid',
-                                headStyles: { fillColor: [230, 230, 230], textColor: 0, fontStyle: 'bold' },
-                                styles: { fontSize: 9, cellPadding: 2 },
-                                columnStyles: { 0: { cellWidth: 80 } },
-                                margin: { left: mLeft }
-                            });
-                            cy = doc.lastAutoTable.finalY + 10;
-                        });
-                    }
-
-                    // --- PÁGINAÇÃO ---
-                    const pageCount = doc.internal.getNumberOfPages();
-                    for (let i = 1; i <= pageCount; i++) {
-                        doc.setPage(i); doc.setFontSize(8); doc.setTextColor(150);
-                        doc.text(`Página ${i} de ${pageCount}`, larguraPagina - 20, doc.internal.pageSize.getHeight() - 10);
-                        doc.text(`Gerado em: ${new Date().toLocaleString()}`, 20, doc.internal.pageSize.getHeight() - 10);
-                    }
-
-                    // 3. MERGE COM PDF-LIB
-                    if (backgroundPdfBytes) {
-                        try {
-                            const contentPdfBytes = doc.output('arraybuffer');
-                            const pdfDoc = await PDFDocument.create();
-                            const backgroundPdf = await PDFDocument.load(backgroundPdfBytes);
-
-                            const [bgPage] = await pdfDoc.copyPages(backgroundPdf, [0]);
-                            const bgDims = bgPage.getSize();
-
-                            const contentPdfLoaded = await PDFDocument.load(contentPdfBytes);
-                            const contentPages = await pdfDoc.copyPages(contentPdfLoaded, contentPdfLoaded.getPageIndices());
-
-                            for (const contentPage of contentPages) {
-                                const page = pdfDoc.addPage([bgDims.width, bgDims.height]);
-
-                                const embeddedBg = await pdfDoc.embedPage(bgPage);
-                                page.drawPage(embeddedBg, { x: 0, y: 0, width: bgDims.width, height: bgDims.height });
-
-                                const embeddedContent = await pdfDoc.embedPage(contentPage);
-                                page.drawPage(embeddedContent, { x: 0, y: 0, width: bgDims.width, height: bgDims.height });
-                            }
-
-                            const pdfBytes = await pdfDoc.save();
-                            const blob = new Blob([pdfBytes], { type: "application/pdf" });
-                            const pdfUrl = URL.createObjectURL(blob);
-
-                            if (mode === 'open') {
-                                window.open(pdfUrl, '_blank');
-                            } else {
-                                const link = document.createElement('a');
-                                link.href = pdfUrl;
-                                link.download = `${dados.codigo}_Analitica.pdf`;
-                                link.click();
-                            }
-                        } catch (err) {
-                            console.error("Erro no Merge:", err);
-                            if (mode === 'open') {
-                                window.open(doc.output('bloburl'), '_blank');
-                            } else {
-                                doc.save(`${dados.codigo}_Analitica.pdf`); // Fallback
-                            }
-                        }
-                    } else {
-                        if (mode === 'open') {
-                            window.open(doc.output('bloburl'), '_blank');
-                        } else {
-                            doc.save(`${dados.codigo}_Analitica.pdf`);
-                        }
-                    }
-                }
-
-                // --------------------------------------------------------------
-                // FUNÇÃO GERAR PDF (Profissional) - Com Opção de Visualizar (blob)
-                // --------------------------------------------------------------
-                async function gerarPDF_Profissional_Old(dados, options = {}) {
-                    // options: { output: 'save' | 'open' }
-                    const mode = options.output || 'save';
-                    const { jsPDF } = window.jspdf;
-                    const doc = new jsPDF();
-                    const larguraPagina = doc.internal.pageSize.getWidth();
-
-                    // FORMATADOR DE DATA CORRIGIDO (FIXED)
-                    const formatarDataExtenso = (dataStr) => {
-                        if (!dataStr) return '-';
-                        const meses = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
-
-                        let dia, mes, ano;
-                        if (dataStr.includes('-')) {
-                            const partes = dataStr.split('-');
-                            if (partes.length === 3) {
-                                // YYYY-MM-DD
-                                ano = partes[0];
-                                mes = parseInt(partes[1]) - 1;
-                                dia = partes[2];
-                            }
-                        } else {
-                            const partes = dataStr.split('/');
-                            if (partes.length >= 2) {
-                                dia = partes.length === 3 ? partes[0] : '01';
-                                mes = parseInt(partes.length === 3 ? partes[1] : partes[0]) - 1;
-                                ano = partes.length === 3 ? partes[2] : partes[1];
-                            }
-                        }
-
-                        if (dia && meses[mes] && ano) {
-                            return `${dia} de ${meses[mes]} de ${ano}`;
-                        }
-                        return dataStr;
-                    };
-
-                    // --- CABEÇALHO SOP ---
-                    doc.setFillColor(0, 143, 61); // Verde SOP (#008F3D)
-                    doc.rect(0, 0, 10, 297, 'F'); // Faixa lateral esquerda
-
-                    doc.setFillColor(0, 143, 61);
-                    doc.rect(10, 10, 190, 2, 'F'); // Linha superior fina
-
-                    // Títulos
-                    doc.setFont("helvetica", "bold");
-                    doc.setFontSize(16);
-                    doc.setTextColor(51, 51, 51);
-                    doc.text("GOVERNO DO ESTADO DO CEARÁ", 20, 25);
-
-                    doc.setFontSize(12);
-                    doc.text("SUPERINTENDÊNCIA DE OBRAS PÚBLICAS - SOP", 20, 32);
+                    doc.setDrawColor(...verdeSOP);
+                    doc.setLineWidth(0.5);
+                    doc.line(larguraPagina - 90, finalY - 4, larguraPagina - 14, finalY - 4);
 
                     doc.setFontSize(10);
-                    doc.setFont("helvetica", "normal");
-                    doc.text("DIRETORIA DE PLANEJAMENTO E GESTÃO", 20, 38);
-
-                    // Título do Documento
-                    doc.setFontSize(18);
+                    doc.setTextColor(...verdeSOP);
                     doc.setFont("helvetica", "bold");
-                    doc.setTextColor(0, 143, 61); // Verde
-                    doc.text("COMPOSIÇÃO ANALÍTICA", 105, 55, { align: "center" });
-
-                    // Linha separadora
-                    doc.setDrawColor(200, 200, 200);
-                    doc.line(20, 60, 190, 60);
-
-                    // --- DADOS DA COMPOSIÇÃO ---
-                    let yPos = 70;
-                    doc.setFontSize(10);
-                    doc.setTextColor(0, 0, 0);
-
-                    // Função auxiliar para negrito/normal
-                    const addField = (label, value, x, y) => {
-                        doc.setFont("helvetica", "bold");
-                        doc.text(label, x, y);
-                        doc.setFont("helvetica", "normal");
-                        // Ajuste simples para valor após label
-                        doc.text(value, x + doc.getTextWidth(label) + 2, y);
-                    };
-
-                    addField("CÓDIGO:", dados.codigo || '-', 20, yPos);
-                    addField("UNIDADE:", dados.unidade || '-', 150, yPos);
-                    yPos += 7;
-
-                    // Descrição com quebra de linha
-                    doc.setFont("helvetica", "bold");
-                    doc.text("DESCRIÇÃO:", 20, yPos);
-                    doc.setFont("helvetica", "normal");
-
-                    const desc = dados.descricao || '-';
-                    const descLines = doc.splitTextToSize(desc, 150);
-                    doc.text(descLines, 45, yPos);
-
-                    const descHeight = (descLines.length * 4);
-                    yPos += Math.max(descHeight, 7) + 3;
-
-                    const dataExtenso = formatarDataExtenso(dados.data_base);
-                    if (dataExtenso) {
-                        addField("DATA BASE:", dataExtenso, 20, yPos);
-                    }
-                    addField("BDI:", (dados.bdi || '0,00') + "%", 100, yPos);
-                    addField("DESCONTO:", (dados.desconto || '0,00') + "%", 150, yPos);
-
-                    const linha2Y = yPos + 5; // Para compatibilidade com restante do código (se usar linha2Y)
-                    // Mas o código original usa linha2Y para startY da tabela. 
-                    // Vamos ignorar linha2Y e ajustar startY da tabela abaixo.
-
-                    let startY = linha2Y + 10;
-                    const tableColumn = ["Origem", "Código", "Descrição", "Unid", "Coef.", "Preço", "Total"];
-                    const tableRows = [];
-                    const itensComMemoria = []; // Novo array para anexo
-                    const ordemGrupos = { 'MAO_DE_OBRA': 1, 'MATERIAL': 2, 'EQUIPAMENTOS': 3, 'SERVICO': 4 };
-                    const itensOrdenados = [...(dados.itens || [])].sort((a, b) => (ordemGrupos[a.grupo] || 99) - (ordemGrupos[b.grupo] || 99));
-
-                    let currentGroup = '';
-                    let sumMat = 0, sumMao = 0, sumEquip = 0, sumServ = 0;
-
-                    const labelGrupos = { 'MAO_DE_OBRA': 'MÃO DE OBRA', 'MATERIAL': 'MATERIAL', 'EQUIPAMENTOS': 'EQUIPAMENTOS', 'SERVICO': 'SERVIÇO' };
-
-                    itensOrdenados.forEach(item => {
-                        const itemGroup = labelGrupos[item.grupo] || (item.grupo || 'MATERIAL').replace(/_/g, ' ');
-                        if (itemGroup !== currentGroup) {
-                            currentGroup = itemGroup;
-                            tableRows.push([{ content: currentGroup, colSpan: 7, styles: { halign: 'center', fontStyle: 'bold', fillColor: [240, 240, 240] } }]);
-                        }
-
-                        const bdiVal = parseFloat((dados.bdi || '0').toString().replace(',', '.')) / 100 || 0;
-                        const descVal = parseFloat((dados.desconto || '0').toString().replace(',', '.')) / 100 || 0;
-
-                        let precoUnitarioBase = item.preco;
-
-                        // Sincronizar com a Memória de Cálculo se for MERCADO + retroativo
-                        if (item.fonte === 'MERCADO' && item.retroativo) {
-                            const r = item.retroativo;
-                            const baseVal = parseFloat(r.base || 0);
-                            const indCotacao = parseFloat(r.indIni || 1);
-                            const indDataBase = parseFloat(r.indFin || 1);
-                            const fator = indDataBase / indCotacao;
-                            // Sincronizar com arredondamento de 2 casas da calculadora
-                            precoUnitarioBase = Math.round((baseVal * fator) * 100) / 100;
-                        }
-
-                        const precoFinal = precoUnitarioBase;
-                        const totalItem = Math.round((precoFinal * item.coeficiente) * 100) / 100;
-
-                        // Acumular Totais para o rodapé do PDF (Garante consistência)
-                        const g = item.grupo || 'MATERIAL';
-                        if (g === 'MAO_DE_OBRA') sumMao = Math.round((sumMao + totalItem) * 100) / 100;
-                        else if (g === 'EQUIPAMENTOS') sumEquip = Math.round((sumEquip + totalItem) * 100) / 100;
-                        else if (g === 'SERVICO') sumServ = Math.round((sumServ + totalItem) * 100) / 100;
-                        else sumMat = Math.round((sumMat + totalItem) * 100) / 100;
-
-                        const refShort = (item.referencia || '').includes('desonerada') ? 'DESONERADA' : 'ONERADA';
-                        const origem = `${item.fonte} ${(item.versao || '').replace('Tabela ', '')}\n${refShort}`;
-
-                        let descCompleta = item.descricao;
-                        if (item.fonte === 'MERCADO' && item.retroativo) {
-                            // Armazena para pág de anexo, não mostra na tabela principal
-                            itensComMemoria.push({ item, origem });
-                            descCompleta += ' (Ver Memória de Cálculo em Anexo)';
-                        }
-
-                        tableRows.push([
-                            origem, item.codigo, descCompleta, item.unidade,
-                            item.coeficiente.toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
-                            precoFinal.toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
-                            totalItem.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
-                        ]);
-                    });
-
-                    doc.autoTable({
-                        head: [tableColumn], body: tableRows, startY: startY, theme: 'striped',
-                        styles: { fontSize: 8, cellPadding: 3, valign: 'middle' },
-                        headStyles: { fillColor: [41, 128, 185], textColor: 255 },
-                        columnStyles: { 0: { cellWidth: 26 }, 2: { cellWidth: 'auto' } }
-                    });
-
-                    // Totais Recalculados
-                    let finalY = doc.lastAutoTable.finalY + 10;
-                    const xLabel = larguraPagina - 80;
-
-                    const totalSemBDI = sumMat + sumMao + sumEquip + sumServ;
-                    const bdiVal = parseFloat((dados.bdi || '0').toString().replace(',', '.')) / 100 || 0;
-                    const descVal = parseFloat((dados.desconto || '0').toString().replace(',', '.')) / 100 || 0;
-
-                    const totalComBDI = Math.round((totalSemBDI * (1 + bdiVal)) * 100) / 100;
-                    const valorBDI = Math.round((totalComBDI - totalSemBDI) * 100) / 100;
-                    const valorDesconto = Math.round((totalComBDI * descVal) * 100) / 100;
-                    const totalGeral = Math.round((totalComBDI - valorDesconto) * 100) / 100;
-
-                    const fmt = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-                    doc.setFontSize(9); doc.setFont("helvetica", "bold");
-
-                    const addTotal = (l, v, numericVal) => {
-                        if (numericVal > 0) {
-                            doc.text(l, xLabel, finalY);
-                            doc.text(v || 'R$ 0,00', larguraPagina - 14, finalY, { align: 'right' });
-                            finalY += 5;
-                        }
-                    };
-                    addTotal("Total Material:", fmt(sumMat), sumMat);
-                    addTotal("Total Mão de Obra:", fmt(sumMao), sumMao);
-                    addTotal("Total Equipamentos:", fmt(sumEquip), sumEquip);
-                    addTotal("Total Serviços:", fmt(sumServ), sumServ);
-                    addTotal(`Valor BDI (${dados.bdi}%):`, fmt(valorBDI), valorBDI);
-                    addTotal(`Valor Desconto (${dados.desconto}%):`, fmt(valorDesconto), valorDesconto);
-
-                    finalY += 3;
-                    doc.setTextColor(0, 100, 0); doc.setFontSize(11);
-                    doc.text("PREÇO TOTAL:", larguraPagina - 85, finalY);
-                    doc.text(fmt(totalGeral), larguraPagina - 14, finalY, { align: 'right' });
-
-                    // SECTION: MEMÓRIA DE CÁLCULO (NOVA PÁGINA)
-                    if (itensComMemoria.length > 0) {
-                        doc.addPage();
-
-                        // Layout Constants
-                        const mLeft = 14;
-                        const mWidth = larguraPagina - 28;
-                        let cy = 20;
-
-                        // Title 1
-                        doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(0, 50, 100);
-                        doc.text("Metodologia de Cálculo de Insumo Não Tabelado (Cotação de Mercado)", mLeft, cy);
-                        cy += 8;
-
-                        // Body 1 & 2
-                        doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(0);
-                        const txt1 = "O presente custo unitário foi obtido através de cotação de mercado, visto que o insumo não consta nas tabelas de referência oficiais (SINAPI/SICRO/ORSE). Para garantir a integridade e a homogeneidade financeira do orçamento, foi realizado o processo de retroação (deflacionamento) do valor cotado.";
-                        const txt2 = "O objetivo é compatibilizar o preço de mercado atual (data da cotação) com a Data-Base da Licitação/Orçamento, expurgando a inflação acumulada no período. Desta forma, todos os custos do orçamento permanecem referenciados no mesmo marco temporal, permitindo a correta aplicação de reajustes contratuais futuros.";
-
-                        const textOptions = { maxWidth: mWidth, align: "justify", lineHeightFactor: 1.8 };
-
-                        doc.text(txt1, mLeft, cy, textOptions);
-                        const dim1 = doc.getTextDimensions(txt1, textOptions);
-                        cy += dim1.h + 8;
-
-                        doc.text(txt2, mLeft, cy, textOptions);
-                        const dim2 = doc.getTextDimensions(txt2, textOptions);
-                        cy += dim2.h + 12;
-
-                        // Title 2
-                        doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(0, 50, 100);
-                        doc.text("Memória de Cálculo e Compatibilização de Preços", mLeft, cy);
-                        cy += 8;
-
-                        // Body 3 & 4
-                        doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(0);
-                        const txt3 = "Considerando a defasagem temporal entre a data desta cotação de mercado e a data-base original deste orçamento, aplicou-se a retroação financeira dos valores.";
-                        const txt4 = "O cálculo consiste na divisão do valor cotado pelo índice inflacionário acumulado no período (ou pela razão entre os índices das datas final e inicial), utilizando o indexador informado na tabela abaixo. Este procedimento visa equiparar o poder de compra da moeda à época da licitação, demonstrado analiticamente abaixo:";
-
-                        doc.text(txt3, mLeft, cy, textOptions);
-                        const dim3 = doc.getTextDimensions(txt3, textOptions);
-                        cy += dim3.h + 8;
-
-                        doc.text(txt4, mLeft, cy, textOptions);
-                        const dim4 = doc.getTextDimensions(txt4, textOptions);
-                        cy += dim4.h + 12;
-
-                        // Loop Items
-                        itensComMemoria.forEach(({ item }) => {
-                            if (cy > doc.internal.pageSize.getHeight() - 60) { doc.addPage(); cy = 20; }
-
-                            const r = item.retroativo;
-                            const baseVal = parseFloat(r.base || 0);
-                            const indCotacao = parseFloat(r.indIni || 1); // Source (Ini)
-                            const indDataBase = parseFloat(r.indFin || 1); // Target (Fin)
-
-                            // Calc Logic: Fator = Ind.Base / Ind.Cotacao
-                            const fator = indDataBase / indCotacao;
-                            const valAdotado = Math.round((baseVal * fator) * 100) / 100;
-
-                            const dCotacao = r.dataIni ? r.dataIni.split('-').reverse().join('/') : '-';
-                            const dDataBase = r.dataFin ? r.dataFin.split('-').reverse().join('/') : '-';
-
-                            doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(0);
-                            doc.text(`Composição/Insumo: ${item.codigo} - ${item.descricao}`, mLeft, cy);
-                            cy += 5;
-
-                            const rows = [
-                                ["A. Valor Cotado (Preço de Mercado)", `R$ ${baseVal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`],
-                                ["B. Data da Cotação", dCotacao],
-                                ["C. Índice na Data da Cotação", indCotacao.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })],
-                                ["D. Data-Base do Orçamento", dDataBase],
-                                ["E. Índice na Data-Base", indDataBase.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })],
-                                ["F. Fator de Ajuste (E ÷ C)", fator.toLocaleString('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 4 })],
-                                ["G. Preço Adotado (A x F)", `R$ ${valAdotado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`]
-                            ];
-
-                            doc.autoTable({
-                                head: [["Parâmetro", "Valor / Descrição"]],
-                                body: rows,
-                                startY: cy,
-                                theme: 'grid',
-                                headStyles: { fillColor: [230, 230, 230], textColor: 0, fontStyle: 'bold' },
-                                styles: { fontSize: 9, cellPadding: 2 },
-                                columnStyles: { 0: { cellWidth: 80 } }
-                            });
-                            cy = doc.lastAutoTable.finalY + 10;
-                        });
-                    }
-
-                    // REST: NO ATTACHMENTS LOOP
-
-                    const pageCount = doc.internal.getNumberOfPages();
-                    for (let i = 1; i <= pageCount; i++) {
-                        doc.setPage(i); doc.setFontSize(8); doc.setTextColor(150);
-                        doc.text(`Página ${i} de ${pageCount}`, larguraPagina - 20, doc.internal.pageSize.getHeight() - 10);
-                    }
+                    doc.text("PREÇO TOTAL UNITÁRIO", larguraPagina - 85, finalY + 3);
+                    doc.setFontSize(12);
+                    doc.text(`R$ ${formatarNumero(precoFinal)}`, larguraPagina - 14, finalY + 3, { align: 'right' });
 
                     if (mode === 'open') {
-                        window.open(doc.output('bloburl'), '_blank');
+                        const blob = doc.output('bloburl');
+                        window.open(blob, '_blank');
                     } else {
                         doc.save(`${dados.codigo}_Analitica.pdf`);
                     }
@@ -8320,7 +7839,7 @@
 
                 // NOVA FUNÇÃO: VISUALIZAR COMPOSIÇÃO (Fetch JSON -> Gerar PDF Blob)
                 // NOVA FUNÇÃO: VISUALIZAR COMPOSIÇÃO (SOP) - Versão Relatório Professional
-                async function visualizarComposicao(id, url) {
+                async function visualizarComposicao(id, url, options = {}) {
                     try {
                         const modalEl = document.getElementById('modalDetalheComposicao');
                         if (!modalEl) {
@@ -8374,32 +7893,38 @@
                                 const meta = json.meta || {};
                                 sourceSOP = true;
                                 docData = {
+                                    ...json, // Mantém todos os campos originais
                                     codigo: meta.codigo || 'S/C',
                                     descricao: meta.descricao,
                                     unidade: meta.unidade,
                                     data_base: meta.data_base,
                                     bdi: meta.bdi,
                                     desconto: meta.desconto,
+                                    versao_atual: meta.versao || meta.versao_projeto || '',
                                     itens: json.itens || []
                                 };
                             }
 
                             if (docData) {
-                                const isSOPCode = docData.codigo && docData.codigo.toUpperCase().includes('SOP');
-
-                                if (sourceSOP || isSOPCode) {
-                                    // Versão Relatório HTML (Imagem 01)
+                                currentCompositionData = docData; // Salva para download via modal
+                                if (docData.itens && Array.isArray(docData.itens)) {
+                                    // Versão Relatório HTML Premium (Imagem 01)
                                     if (modalEl.parentElement !== document.body) document.body.appendChild(modalEl);
                                     const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
 
-                                    // Limpa e mostra loader apenas se for SOP
-                                    modalBody.innerHTML = `<div class="p-5 text-center text-muted"><div class="spinner-border text-success mb-3"></div><p>Carregando Relatório SOP...</p></div>`;
+                                    // Mostra loader
+                                    modalBody.innerHTML = `<div class="p-5 text-center text-muted"><div class="spinner-border text-success mb-3"></div><p>Carregando Relatório GECOPE...</p></div>`;
                                     modal.show();
 
                                     renderizarRelatorioSOP_HTML(docData, modalBody);
+
+                                    if (options.autoPrint) {
+                                        setTimeout(() => { window.print(); }, 500);
+                                    }
                                 } else {
-                                    // Versão Anterior (PDF Profissional) - Sem abrir modal
-                                    await gerarPDF_Profissional(docData, { output: 'open' });
+                                    // Caso não seja analítica (ex: apenas arquivo PDF/XLS arquivado)
+                                    if (url) window.open(url, '_blank');
+                                    else throw new Error("Documento não possui dados analíticos.");
                                 }
                             } else {
                                 if (!url) {
@@ -8443,6 +7968,7 @@
 
                     let totalSimples = 0;
                     let tableRows = '';
+                    const retroativos = [];
 
                     // Iteração sobre Grupos e Insumos
                     Object.entries(itensAgrupados).forEach(([nomeGrupo, insumosDoGrupo]) => {
@@ -8462,17 +7988,24 @@
                             const precoUnit = Number(item.preco_unitario || item.preco || 0);
                             const coef = Number(item.coeficiente || 0);
                             const total = Number(item.total || item.total_item || (precoUnit * coef)) || 0;
-                            const dataItem = item.data_tabela || item.data_referencia || '-';
+                            const dataItem = item.data_tabela || item.versao || item.data_referencia || '-';
 
                             subtotalGrupo += total;
                             totalSimples += total;
 
+                            if (item.retroativo) {
+                                retroativos.push({ ...item, codInsumo, descInsumo });
+                            }
+
                             tableRows += `
                                 <tr style="font-size: 0.85rem;">
-                                    <td class="text-center text-muted">${item.origem || '-'}</td>
+                                    <td class="text-center text-muted">${item.origem || item.fonte || '-'}</td>
                                     <td class="text-center">${dataItem}</td>
                                     <td class="text-center fw-bold">${codInsumo}</td>
-                                    <td style="text-align: justify;">${descInsumo}</td>
+                                    <td style="text-align: justify;">
+                                        <div class="fw-bold text-dark">${descInsumo}</div>
+                                        ${item.retroativo ? '<div class="text-success fw-bold mt-1" style="font-size: 0.65rem;"><i class="bi bi-info-circle me-1"></i> Ver Memória de Cálculo na Pág. 02</div>' : ''}
+                                    </td>
                                     <td class="text-center">${item.unidade || '-'}</td>
                                     <td class="text-center">${safeLoc(coef, 4)}</td>
                                     <td class="text-end">${safeLoc(precoUnit)}</td>
@@ -8499,6 +8032,57 @@
                     const valorDesconto = totalComBDI * (descVal || 0);
                     const precoFinal = totalComBDI - valorDesconto;
 
+                    // Metodologia (Página 02)
+                    let explicitMemoryHTML = '';
+                    if (retroativos.length > 0) {
+                        explicitMemoryHTML = `
+                            <div class="print-page-break p-4">
+                                <h6 class="fw-bold text-primary mb-3">Metodologia de Cálculo de Insumo Não Tabelado (Cotação de Mercado)</h6>
+                                <p class="text-muted" style="font-size: 0.82rem; text-align: justify;">
+                                    O presente custo unitário foi obtido através de cotação de mercado, visto que o insumo não consta nas tabelas de referência oficiais (SINAPI/SICRO/ORSE). Para garantir a integridade e a homogeneidade financeira do orçamento, foi realizado o processo de retroação (deflacionamento) do valor cotado.
+                                </p>
+                                <p class="text-muted" style="font-size: 0.82rem; text-align: justify;">
+                                    O objetivo é compatibilizar o preço de mercado atual (data da cotação) com a Data-Base da Licitação/Orçamento, expurgando a inflação acumulada no período. Desta forma, todos os custos do orçamento permanecem referenciados no mesmo marco temporal, permitindo a correta aplicação de reajustes contratuais futuros.
+                                </p>
+
+                                <h6 class="fw-bold mt-4 mb-2">Memória de Cálculo e Compatibilização de Preços</h6>
+                                <p class="text-muted mb-4" style="font-size: 0.82rem; text-align: justify;">
+                                    Considerando a defasagem temporal entre a data desta cotação de mercado e a data-base original deste orçamento, aplicou-se a retroação financeira dos valores. O cálculo consiste na divisão do valor cotado pelo índice inflacionário acumulado no período (ou pela razão entre os índices das datas final e inicial), utilizando o indexador informado na tabela abaixo:
+                                </p>
+
+                                ${retroativos.map(r => {
+                            const ret = r.retroativo;
+                            const fator = (Number(ret.indFin) / Number(ret.indIni)) || 1;
+                            const dCot = ret.dataIni ? ret.dataIni.split('-').reverse().slice(1).join('/') : '-';
+                            const dBase = ret.dataFin ? ret.dataFin.split('-').reverse().slice(1).join('/') : '-';
+
+                            return `
+                                    <div class="mb-5 border-bottom pb-4">
+                                        <div class="fw-bold text-dark mb-2" style="font-size: 0.9rem;">Item: ${r.codInsumo} - ${r.descInsumo}</div>
+                                        <table class="table table-bordered table-sm" style="font-size: 0.78rem; max-width: 600px;">
+                                            <thead class="bg-light">
+                                                <tr class="text-center">
+                                                    <th style="width: 70%">Parâmetro</th>
+                                                    <th>Valor / Descrição</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr><td>A. Valor Cotado (Preço de Mercado)</td><td class="text-end fw-bold">R$ ${safeLoc(ret.base)}</td></tr>
+                                                <tr><td>B. Data da Cotação</td><td class="text-center">${dCot || '-'}</td></tr>
+                                                <tr><td>C. Índice na Data da Cotação</td><td class="text-center">${safeLoc(ret.indIni, 3)}</td></tr>
+                                                <tr><td>D. Data-Base do Orçamento</td><td class="text-center">${dBase || '-'}</td></tr>
+                                                <tr><td>E. Índice na Data-Base</td><td class="text-center">${safeLoc(ret.indFin, 3)}</td></tr>
+                                                <tr><td>F. Fator de Ajuste (E / C)</td><td class="text-center fw-bold">${fator.toFixed(4)}</td></tr>
+                                                <tr><td>G. Preço Adotado (A x F)</td><td class="text-end fw-bold text-success">R$ ${safeLoc(ret.base * fator)}</td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    `;
+                        }).join('')}
+                            </div>
+                        `;
+                    }
+
                     container.innerHTML = `
                         <div class="p-4 report-print-area">
                             <!-- Cabeçalho Institucional Compacto -->
@@ -8519,12 +8103,15 @@
                             <!-- Metadados da Composição Compactos -->
                             <div class="row g-2 mb-3 p-2 border rounded bg-light shadow-sm align-items-center">
                                 <div class="col-md-2">
-                                    <label class="text-muted fw-bold text-uppercase d-block mb-0" style="font-size: 0.65rem;">CÓDIGO</label>
-                                    <span class="fw-bold text-dark fs-6">${codigo}</span>
+                                    <label class="text-muted fw-bold text-uppercase d-block mb-0" style="font-size: 0.65rem;">CÓDIGO / VERSÃO</label>
+                                    <div class="d-flex align-items-center">
+                                        <span class="fw-bold text-dark fs-6">${codigo}</span>
+                                        ${dados.versao_atual ? `<span class="badge bg-secondary ms-2" style="font-size: 0.65rem; background-color: #6c757d !important;">${dados.versao_atual}</span>` : ''}
+                                    </div>
                                 </div>
                                 <div class="col-md-7 border-start ps-3">
                                     <label class="text-muted fw-bold text-uppercase d-block mb-0" style="font-size: 0.65rem;">DESCRIÇÃO DA COMPOSIÇÃO</label>
-                                    <span class="fw-bold text-dark fs-6 text-uppercase">${descricao}</span>
+                                    <span class="fw-bold text-dark fs-6 text-uppercase" style="font-size: 0.75rem !important;">${descricao}</span>
                                 </div>
                                 <div class="col-md-1 border-start ps-3">
                                     <label class="text-muted fw-bold text-uppercase d-block mb-0" style="font-size: 0.65rem;">UNID.</label>
@@ -8590,264 +8177,210 @@
                                 <div>${new Date().toLocaleString('pt-BR')}</div>
                             </div>
                         </div>
+
+                        ${explicitMemoryHTML}
                     `;
                 }
 
 
                 function gerarDOCX_Profissional(dados) {
-                    const { Document, Packer, Paragraph, Table, TableCell, TableRow, WidthType, HeadingLevel, TextRun, AlignmentType } = window.docx;
+                    const { Document, Packer, Paragraph, Table, TableCell, TableRow, WidthType, HeadingLevel, TextRun, AlignmentType, VerticalAlign, BorderStyle } = window.docx;
 
-                    // FORMATADOR DE DATA CORRIGIDO (Igual PDF)
-                    const formatarDataExtenso = (dataStr) => {
-                        if (!dataStr) return '-';
-                        const meses = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
-                        let dia, mes, ano;
-                        if (dataStr.includes('-')) {
-                            const partes = dataStr.split('-');
-                            if (partes.length === 3) {
-                                ano = partes[0];
-                                mes = parseInt(partes[1]) - 1;
-                                dia = partes[2];
-                            }
-                        } else {
-                            const partes = dataStr.split('/');
-                            if (partes.length >= 2) {
-                                dia = partes.length === 3 ? partes[0] : '01';
-                                mes = parseInt(partes.length === 3 ? partes[1] : partes[0]) - 1;
-                                ano = partes.length === 3 ? partes[2] : partes[1];
-                            }
-                        }
-                        if (dia && meses[mes] && ano) return `${dia} de ${meses[mes]} de ${ano}`;
-                        return dataStr;
-                    };
-                    const dataExtenso = formatarDataExtenso(dados.data_base);
+                    const formatarNumero = (v, d = 2) => Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
 
-                    // SORTING LOGIC (Missing in DOCX)
-                    const ordemGrupos = { 'MAO_DE_OBRA': 1, 'MATERIAL': 2, 'EQUIPAMENTOS': 3, 'SERVICO': 4 };
-                    const itensOrdenados = [...(dados.itens || [])].sort((a, b) => (ordemGrupos[a.grupo] || 99) - (ordemGrupos[b.grupo] || 99));
+                    // CONFIGURAÇÃO DE BORDAS INVISÍVEIS PARA CABEÇALHO
+                    const noBorder = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
 
-
-                    // Estilo Headers
-                    const makeHeaderCell = (text) => new TableCell({
-                        children: [new Paragraph({ text, bold: true, size: 16 })], // 8pt
-                        shading: { fill: "E9ECEF" }
-                    });
-
-                    const headerRow = new TableRow({
-                        children: [
-                            makeHeaderCell("Origem"), makeHeaderCell("Código"), makeHeaderCell("Descrição"),
-                            makeHeaderCell("Unid"), makeHeaderCell("Coef."), makeHeaderCell("Preço"), makeHeaderCell("Total")
+                    // 1. CONSTRUÇÃO DO CABEÇALHO (SIMULANDO O LAYOUT DO MODAL)
+                    const headerTable = new Table({
+                        width: { size: 100, type: WidthType.PERCENTAGE },
+                        borders: { top: noBorder, bottom: { style: BorderStyle.SINGLE, size: 1, color: "DEE2E6" }, left: noBorder, right: noBorder, insideHorizontal: noBorder, insideVertical: noBorder },
+                        rows: [
+                            new TableRow({
+                                children: [
+                                    // Lado Esquerdo: Logo e Governo
+                                    new TableCell({
+                                        width: { size: 60, type: WidthType.PERCENTAGE },
+                                        children: [
+                                            new Paragraph({
+                                                children: [
+                                                    new TextRun({ text: "SOP-CE", bold: true, color: "FFFFFF", size: 24, shading: { fill: "008F3D" } }),
+                                                    new TextRun({ text: "  ESTADO DO CEARÁ", bold: true, color: "008F3D", size: 22 }),
+                                                ],
+                                                spacing: { after: 100 }
+                                            }),
+                                            new Paragraph({
+                                                children: [
+                                                    new TextRun({ text: "SUPERINTENDÊNCIA DE OBRAS PÚBLICAS", bold: true, color: "343A40", size: 16 })
+                                                ]
+                                            })
+                                        ]
+                                    }),
+                                    // Lado Direito: Título
+                                    new TableCell({
+                                        width: { size: 40, type: WidthType.PERCENTAGE },
+                                        verticalAlign: VerticalAlign.CENTER,
+                                        children: [
+                                            new Paragraph({
+                                                children: [
+                                                    new TextRun({ text: "COMPOSIÇÃO ANALÍTICA", bold: true, color: "212529", size: 28 })
+                                                ],
+                                                alignment: AlignmentType.RIGHT
+                                            }),
+                                            new Paragraph({
+                                                children: [
+                                                    new TextRun({ text: "GEROA - GERÊNCIA DE ORÇAMENTOS E AVALIAÇÃO DE IMÓVEIS", bold: true, color: "6C757D", size: 14 })
+                                                ],
+                                                alignment: AlignmentType.RIGHT
+                                            })
+                                        ]
+                                    })
+                                ]
+                            })
                         ]
                     });
 
-                    let currentGroupDocx = '';
-                    const itensComMemoriaDocx = []; // Array DOCX
-
-                    const itemRows = [];
-
-                    let sumMat = 0, sumMao = 0, sumEquip = 0, sumServ = 0;
-                    const labelGruposDocx = { 'MAO_DE_OBRA': 'MÃO DE OBRA', 'MATERIAL': 'MATERIAL', 'EQUIPAMENTOS': 'EQUIPAMENTOS', 'SERVICO': 'SERVIÇO' };
-
-                    itensOrdenados.forEach(item => {
-                        const itemGroup = labelGruposDocx[item.grupo] || (item.grupo || 'MATERIAL').replace(/_/g, ' ');
-
-                        // Adicionar linha de cabeçalho do grupo se mudar
-                        if (itemGroup !== currentGroupDocx) {
-                            currentGroupDocx = itemGroup;
-                            itemRows.push(new TableRow({
+                    // 2. METADADOS (BOXED GRID)
+                    const metaTable = new Table({
+                        width: { size: 100, type: WidthType.PERCENTAGE },
+                        rows: [
+                            new TableRow({
                                 children: [
                                     new TableCell({
-                                        children: [new Paragraph({ text: currentGroupDocx, bold: true, alignment: AlignmentType.CENTER, size: 18 })],
-                                        columnSpan: 7,
-                                        shading: { fill: "F0F0F0" }
+                                        shading: { fill: "F8F9FA" },
+                                        children: [
+                                            new Paragraph({ children: [new TextRun({ text: "CÓDIGO", bold: true, size: 12, color: "6C757D" })] }),
+                                            new Paragraph({ children: [new TextRun({ text: dados.codigo || '-', bold: true, size: 18 })] })
+                                        ]
+                                    }),
+                                    new TableCell({
+                                        width: { size: 50, type: WidthType.PERCENTAGE },
+                                        shading: { fill: "F8F9FA" },
+                                        children: [
+                                            new Paragraph({ children: [new TextRun({ text: "DESCRIÇÃO DA COMPOSIÇÃO", bold: true, size: 12, color: "6C757D" })] }),
+                                            new Paragraph({ children: [new TextRun({ text: (dados.descricao || '-').toUpperCase(), bold: true, size: 18 })] })
+                                        ]
+                                    }),
+                                    new TableCell({
+                                        shading: { fill: "F8F9FA" },
+                                        children: [
+                                            new Paragraph({ children: [new TextRun({ text: "UNID.", bold: true, size: 12, color: "6C757D" })] }),
+                                            new Paragraph({ children: [new TextRun({ text: dados.unidade || '-', bold: true, size: 18 })] })
+                                        ]
+                                    }),
+                                    new TableCell({
+                                        shading: { fill: "F8F9FA" },
+                                        children: [
+                                            new Paragraph({ children: [new TextRun({ text: "TAXAS", bold: true, size: 12, color: "6C757D" })] }),
+                                            new Paragraph({ children: [new TextRun({ text: `BDI: ${dados.bdi || '0,00'}%`, bold: true, size: 14, color: "007BFF" })] }),
+                                            new Paragraph({ children: [new TextRun({ text: `DESC: ${dados.desconto || '0,00'}%`, bold: true, size: 14, color: "DC3545" })] })
+                                        ]
                                     })
                                 ]
+                            })
+                        ]
+                    });
+
+                    // 3. TABELA DE ITENS
+                    const headerRow = new TableRow({
+                        children: [
+                            "ORIGEM", "DATA", "CÓDIGO", "DESCRIÇÃO DO INSUMO", "UNID", "COEF.", "P. UNIT.", "TOTAL"
+                        ].map(h => new TableCell({
+                            shading: { fill: "343A40" },
+                            children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, color: "FFFFFF", size: 14 })], alignment: AlignmentType.CENTER })]
+                        }))
+                    });
+
+                    const itemRows = [];
+                    let currentGroup = '';
+                    let subtotalSimples = 0;
+
+                    const itensOrdenados = [...(dados.itens || [])].sort((a, b) => {
+                        const ordem = { 'MAO_DE_OBRA': 1, 'MATERIAL': 2, 'EQUIPAMENTOS': 3, 'SERVICO': 4 };
+                        return (ordem[a.tipo_grupo || a.grupo] || 99) - (ordem[b.tipo_grupo || b.grupo] || 99);
+                    });
+
+                    itensOrdenados.forEach(item => {
+                        const grupo = item.tipo_grupo || item.grupo || 'GERAL';
+                        const precoUnit = Number(item.preco_unitario || item.preco || 0);
+                        const coef = Number(item.coeficiente || 0);
+                        const total = Number(item.total || item.total_item || (precoUnit * coef)) || 0;
+                        const dataItem = item.data_tabela || item.data_referencia || '-';
+                        subtotalSimples += total;
+
+                        if (grupo !== currentGroup) {
+                            currentGroup = grupo;
+                            itemRows.push(new TableRow({
+                                children: [new TableCell({
+                                    columnSpan: 8,
+                                    shading: { fill: "F2F2F2" },
+                                    children: [new Paragraph({ children: [new TextRun({ text: currentGroup.toUpperCase(), bold: true, size: 16 })], alignment: AlignmentType.CENTER })]
+                                })]
                             }));
                         }
 
-                        const bdiVal = parseFloat((dados.bdi || '0').toString().replace(',', '.')) / 100 || 0;
-                        const descVal = parseFloat((dados.desconto || '0').toString().replace(',', '.')) / 100 || 0;
+                        // Descrição com Memória
+                        const descChildren = [new Paragraph({ children: [new TextRun({ text: item.descricao_insumo || item.descricao || '-', bold: true, size: 16 })], alignment: AlignmentType.JUSTIFIED })];
 
-                        let precoUnitarioBase = item.preco;
-
-                        // Sincronizar com a Memória de Cálculo se for MERCADO + retroativo
-                        if (item.fonte === 'MERCADO' && item.retroativo) {
+                        if (item.retroativo) {
                             const r = item.retroativo;
-                            const baseVal = parseFloat(r.base || 0);
-                            const indCotacao = parseFloat(r.indIni || 1);
-                            const indDataBase = parseFloat(r.indFin || 1);
-                            const fator = indDataBase / indCotacao;
-                            precoUnitarioBase = Math.round((baseVal * fator) * 100) / 100;
+                            const dCot = r.dataIni ? r.dataIni.split('-').reverse().join('/') : '-';
+                            const dBase = r.dataFin ? r.dataFin.split('-').reverse().join('/') : '-';
+                            const fator = (Number(r.indFin) / Number(r.indIni)) || 1;
+
+                            descChildren.push(new Paragraph({
+                                children: [
+                                    new TextRun({ text: "\n[MEMÓRIA DE CÁLCULO - RETROAÇÃO]", bold: true, color: "008F3D", size: 12 }),
+                                    new TextRun({ text: `\nValor Cotado: R$ ${formatarNumero(r.base)} | Data: ${dCot} | Índice Cot.: ${formatarNumero(r.indIni, 3)}`, size: 12 }),
+                                    new TextRun({ text: `\nData-Base: ${dBase} | Índice Base: ${formatarNumero(r.indFin, 3)} | Fator: ${fator.toFixed(4)}`, size: 12 })
+                                ],
+                                spacing: { before: 100 }
+                            }));
                         }
-
-                        const precoFinal = precoUnitarioBase;
-                        const totalItem = Math.round((precoFinal * item.coeficiente) * 100) / 100;
-
-                        // Acumular Totais para o resumo do DOCX
-                        const g = item.grupo || 'MATERIAL';
-                        if (g === 'MAO_DE_OBRA') sumMao = Math.round((sumMao + totalItem) * 100) / 100;
-                        else if (g === 'EQUIPAMENTOS') sumEquip = Math.round((sumEquip + totalItem) * 100) / 100;
-                        else if (g === 'SERVICO') sumServ = Math.round((sumServ + totalItem) * 100) / 100;
-                        else sumMat = Math.round((sumMat + totalItem) * 100) / 100;
-
-                        // Formatação Origem: SEINFRA 28 \n ONERADA
-                        const refShort = (item.referencia || '').toLowerCase().includes('desonerada') ? 'DESONERADA' : (item.referencia === 'COTAÇÃO' ? 'COTAÇÃO' : 'ONERADA');
-                        const verShort = (item.versao || '').replace('Tabela ', '');
-                        const origem = `${item.fonte} ${verShort}\n${refShort}`;
-
-                        // Formatação Descrição com Anexos e Memória
-                        let descCompleta = item.descricao;
-
-                        if (item.fonte === 'MERCADO' && item.retroativo) {
-                            // Adicionar a lista de memória, limpar descrição
-                            itensComMemoriaDocx.push(item);
-                            descCompleta += ' (Ver Memória de Cálculo ao final)';
-                        }
-
-
 
                         itemRows.push(new TableRow({
                             children: [
-                                new TableCell({ children: [new Paragraph({ text: origem, size: 14, alignment: AlignmentType.CENTER })] }), // Origem
-                                new TableCell({ children: [new Paragraph({ text: item.codigo, size: 16, alignment: AlignmentType.CENTER })] }), // Código
-                                new TableCell({ children: [new Paragraph({ text: descCompleta, size: 16, alignment: AlignmentType.JUSTIFIED })] }), // Descrição
-                                new TableCell({ children: [new Paragraph({ text: item.unidade, size: 16, alignment: AlignmentType.CENTER })] }),
-                                new TableCell({ children: [new Paragraph({ text: (typeof item.coeficiente === 'number' ? item.coeficiente : parseFloat(item.coeficiente || 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), size: 16, alignment: AlignmentType.CENTER })] }),
-                                new TableCell({ children: [new Paragraph({ text: precoFinal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), size: 16, alignment: AlignmentType.CENTER })] }),
-                                new TableCell({ children: [new Paragraph({ text: totalItem.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), size: 16, alignment: AlignmentType.CENTER })] })
+                                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: item.origem || '-', size: 14 })], alignment: AlignmentType.CENTER })] }),
+                                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: dataItem, size: 14 })], alignment: AlignmentType.CENTER })] }),
+                                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: item.codigo_insumo || item.codigo || '-', bold: true, size: 16 })], alignment: AlignmentType.CENTER })] }),
+                                new TableCell({ children: descChildren }),
+                                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: item.unidade || '-', size: 14 })], alignment: AlignmentType.CENTER })] }),
+                                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: formatarNumero(coef, 4), size: 14 })], alignment: AlignmentType.CENTER })] }),
+                                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: formatarNumero(precoUnit), size: 14 })], alignment: AlignmentType.RIGHT })] }),
+                                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: formatarNumero(total), bold: true, size: 14 })], alignment: AlignmentType.RIGHT })] })
                             ]
                         }));
                     });
 
-                    const t = dados.totais || {};
-
-                    // SECTION: MEMÓRIA DE CÁLCULO DOCX
-                    const memoriaElements = [];
-                    if (itensComMemoriaDocx.length > 0) {
-                        memoriaElements.push(new Paragraph({ text: "", pageBreakBefore: true }));
-
-                        // Helper style
-                        const titleStyle = { bold: true, size: 24, color: "003264", spacing: { after: 200 } }; // 12pt
-                        const bodyStyle = { alignment: AlignmentType.JUSTIFIED, size: 20, spacing: { line: 360, after: 200 } }; // 10pt, line: 360 = 1.5 line spacing (standard is 240)
-
-                        // Header Texts
-                        memoriaElements.push(new Paragraph({ text: "Metodologia de Cálculo de Insumo Não Tabelado (Cotação de Mercado)", ...titleStyle }));
-                        memoriaElements.push(new Paragraph({ text: "O presente custo unitário foi obtido através de cotação de mercado, visto que o insumo não consta nas tabelas de referência oficiais (SINAPI/SICRO/ORSE). Para garantir a integridade e a homogeneidade financeira do orçamento, foi realizado o processo de retroação (deflacionamento) do valor cotado.", ...bodyStyle }));
-                        memoriaElements.push(new Paragraph({ text: "O objetivo é compatibilizar o preço de mercado atual (data da cotação) com a Data-Base da Licitação/Orçamento, expurgando a inflação acumulada no período. Desta forma, todos os custos do orçamento permanecem referenciados no mesmo marco temporal, permitindo a correta aplicação de reajustes contratuais futuros.", ...bodyStyle }));
-
-                        memoriaElements.push(new Paragraph({ text: "Memória de Cálculo e Compatibilização de Preços", ...titleStyle, spacing: { before: 300, after: 200 } }));
-                        memoriaElements.push(new Paragraph({ text: "Considerando a defasagem temporal entre a data desta cotação de mercado e a data-base original deste orçamento, aplicou-se a retroação financeira dos valores.", ...bodyStyle }));
-                        memoriaElements.push(new Paragraph({ text: "O cálculo consiste na divisão do valor cotado pelo índice inflacionário acumulado no período (ou pela razão entre os índices das datas final e inicial), utilizando o indexador informado na tabela abaixo. Este procedimento visa equiparar o poder de compra da moeda à época da licitação, demonstrado analiticamente abaixo:", ...bodyStyle }));
-
-                        // Tables Loop
-                        itensComMemoriaDocx.forEach(item => {
-                            const r = item.retroativo;
-                            const baseVal = parseFloat(r.base || 0);
-                            const indCotacao = parseFloat(r.indIni || 1); // Source
-                            const indDataBase = parseFloat(r.indFin || 1); // Target
-
-                            const fator = indDataBase / indCotacao;
-                            const valAdotado = Math.round((baseVal * fator) * 100) / 100;
-
-                            const dCotacao = r.dataIni ? r.dataIni.split('-').reverse().join('/') : '-';
-                            const dDataBase = r.dataFin ? r.dataFin.split('-').reverse().join('/') : '-';
-
-                            memoriaElements.push(new Paragraph({ text: `Item: ${item.codigo} - ${item.descricao}`, bold: true, size: 20, spacing: { before: 400, after: 100 } }));
-
-                            const makeRow = (l, v) => new TableRow({
-                                children: [
-                                    new TableCell({ children: [new Paragraph({ text: l, size: 18 })], width: { size: 50, type: WidthType.PERCENTAGE } }),
-                                    new TableCell({ children: [new Paragraph({ text: v, size: 18 })], width: { size: 50, type: WidthType.PERCENTAGE } })
-                                ]
-                            });
-
-                            const table = new Table({
-                                rows: [
-                                    new TableRow({
-                                        children: [
-                                            new TableCell({ children: [new Paragraph({ text: "Parâmetro", bold: true, size: 18 })], shading: { fill: "E0E0E0" } }),
-                                            new TableCell({ children: [new Paragraph({ text: "Valor / Descrição", bold: true, size: 18 })], shading: { fill: "E0E0E0" } })
-                                        ]
-                                    }),
-                                    makeRow("A. Valor Cotado (Preço de Mercado)", `R$ ${baseVal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`),
-                                    makeRow("B. Data da Cotação", dCotacao),
-                                    makeRow("C. Índice na Data da Cotação", indCotacao.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })),
-                                    makeRow("D. Data-Base do Orçamento", dDataBase),
-                                    makeRow("E. Índice na Data-Base", indDataBase.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })),
-                                    makeRow("F. Fator de Ajuste (E ÷ C)", fator.toLocaleString('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 4 })),
-                                    makeRow("G. Preço Adotado (A x F)", `R$ ${valAdotado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`)
-                                ],
-                                width: { size: 100, type: WidthType.PERCENTAGE }
-                            });
-                            memoriaElements.push(table);
-                        });
-                    }
+                    // 4. TOTAIS E RODAPÉ
+                    const bdiVal = parseFloat((dados.bdi || 0).toString().replace(',', '.')) / 100;
+                    const descVal = parseFloat((dados.desconto || 0).toString().replace(',', '.')) / 100;
+                    const valorBDI = subtotalSimples * bdiVal;
+                    const totalComBDI = subtotalSimples + valorBDI;
+                    const valorDesconto = totalComBDI * descVal;
+                    const precoFinal = totalComBDI - valorDesconto;
 
                     const doc = new Document({
                         sections: [{
                             properties: {},
                             children: [
-                                new Paragraph({ text: "GECOPE - GERÊNCIA DE CUSTOS E OPERAÇÕES", heading: HeadingLevel.HEADING_2, alignment: AlignmentType.CENTER, color: "003264" }),
-                                new Paragraph({ text: "RELATÓRIO DE COMPOSIÇÃO ANALÍTICA", heading: HeadingLevel.HEADING_3, alignment: AlignmentType.CENTER }),
-                                new Paragraph({ text: "", spacing: { after: 200 } }), // Spacer
-
-                                // Row 1
-                                new Paragraph({
-                                    children: [
-                                        new TextRun({ text: "CÓDIGO: ", bold: true }),
-                                        new TextRun({ text: `${dados.codigo || '-'}     ` }),
-                                        new TextRun({ text: "DESCRIÇÃO: ", bold: true }),
-                                        new TextRun({ text: `${dados.descricao || '-'}` })
-                                    ]
-                                }),
-
-                                // Row 2
-                                new Paragraph({
-                                    children: [
-                                        new TextRun({ text: "DATA BASE: ", bold: true }),
-                                        new TextRun({ text: `${dataExtenso}                                                                                                 ` }), // Tab simulation
-                                        new TextRun({ text: "UNIDADE: ", bold: true }),
-                                        new TextRun({ text: `${dados.unidade || '-'}` })
-                                    ],
-                                    spacing: { after: 200 }
-                                }),
-
+                                headerTable,
+                                new Paragraph({ text: "", spacing: { after: 200 } }),
+                                metaTable,
+                                new Paragraph({ text: "", spacing: { after: 200 } }),
                                 new Table({
-                                    rows: [headerRow, ...itemRows],
-                                    width: { size: 100, type: WidthType.PERCENTAGE }
+                                    width: { size: 100, type: WidthType.PERCENTAGE },
+                                    rows: [headerRow, ...itemRows]
                                 }),
-
-                                new Paragraph({ text: "", spacing: { before: 200 } }),
-                                new Paragraph({ text: "RESUMO DOS VALORES:", bold: true }),
-
-                                (() => {
-                                    const totalSemBDI = sumMat + sumMao + sumEquip + sumServ;
-                                    const bdiVal = parseFloat((dados.bdi || '0').toString().replace(',', '.')) / 100 || 0;
-                                    const descVal = parseFloat((dados.desconto || '0').toString().replace(',', '.')) / 100 || 0;
-                                    const totalComBDI = Math.round((totalSemBDI * (1 + bdiVal)) * 100) / 100;
-                                    const valorBDI = Math.round((totalComBDI - totalSemBDI) * 100) / 100;
-                                    const valorDesconto = Math.round((totalComBDI * descVal) * 100) / 100;
-                                    const totalGeral = Math.round((totalComBDI - valorDesconto) * 100) / 100;
-                                    const fmt = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-
-                                    const rows = [];
-                                    if (sumMat > 0) rows.push(new Paragraph({ text: `Total Material: ${fmt(sumMat)}`, spacing: { before: 100 } }));
-                                    if (sumMao > 0) rows.push(new Paragraph({ text: `Total Mão de Obra: ${fmt(sumMao)}` }));
-                                    if (sumEquip > 0) rows.push(new Paragraph({ text: `Total Equipamentos: ${fmt(sumEquip)}` }));
-                                    if (sumServ > 0) rows.push(new Paragraph({ text: `Total Serviço: ${fmt(sumServ)}` }));
-                                    if (valorBDI > 0) rows.push(new Paragraph({ text: `Valor BDI (${dados.bdi}%): ${fmt(valorBDI)}`, spacing: { before: 100 } }));
-                                    if (valorDesconto > 0) rows.push(new Paragraph({ text: `Valor Desconto (${dados.desconto}%): ${fmt(valorDesconto)}` }));
-
-                                    rows.push(new Paragraph({ text: `PREÇO UNITÁRIO TOTAL: ${fmt(totalGeral)}`, bold: true, size: 24, color: "198754", spacing: { before: 200 } }));
-                                    return rows;
-                                })(),
-
-                                new Paragraph({ text: `Gerado em: ${new Date().toLocaleString()}`, size: 16, color: "888888", alignment: AlignmentType.RIGHT, spacing: { before: 400 } }),
-
-                                // Append Memória Elements
-                                ...memoriaElements
-                            ],
-                        }],
+                                new Paragraph({ text: "", spacing: { before: 400 } }),
+                                // Totais
+                                new Paragraph({ children: [new TextRun({ text: `TOTAL SIMPLES: R$ ${formatarNumero(subtotalSimples)}`, size: 16 })], alignment: AlignmentType.RIGHT }),
+                                ...(valorBDI > 0 ? [new Paragraph({ children: [new TextRun({ text: `BDI (${dados.bdi}%): R$ ${formatarNumero(valorBDI)}`, size: 16, color: "007BFF" })], alignment: AlignmentType.RIGHT })] : []),
+                                ...(valorDesconto > 0 ? [new Paragraph({ children: [new TextRun({ text: `DESCONTO (${dados.desconto}%): R$ ${formatarNumero(valorDesconto)}`, size: 16, color: "DC3545" })], alignment: AlignmentType.RIGHT })] : []),
+                                new Paragraph({ children: [new TextRun({ text: `PREÇO TOTAL UNITÁRIO: R$ ${formatarNumero(precoFinal)}`, bold: true, size: 24, color: "008F3D" })], alignment: AlignmentType.RIGHT, spacing: { before: 200 } }),
+                                new Paragraph({ children: [new TextRun({ text: `Gerado em: ${new Date().toLocaleString('pt-BR')}`, size: 12, color: "6C757D" })], alignment: AlignmentType.RIGHT, spacing: { before: 400 } })
+                            ]
+                        }]
                     });
 
                     Packer.toBlob(doc).then(blob => {
@@ -9420,11 +8953,13 @@
                             </div>
                         </div>
                         <div class="modal-footer py-2 bg-light d-print-none">
-                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i
-                                    class="bi bi-printer me-1"></i> Imprimir / PDF</button>
-                            <button type="button" class="btn btn-secondary btn-sm"
+                            <button type="button" class="btn btn-outline-success btn-sm" onclick="window.print()">
+                                <i class="bi bi-printer me-1"></i> Imprimir / Salvar PDF
+                            </button>
+                            <button type="button" class="btn btn-secondary btn-sm ms-auto"
                                 data-bs-dismiss="modal">Fechar</button>
                         </div>
+
                     </div>
                 </div>
             </div>
