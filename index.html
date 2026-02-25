@@ -20,6 +20,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"
         defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
     <script src="https://unpkg.com/docx@7.1.0/build/index.js" defer></script>
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js" defer></script>
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js" defer></script>
@@ -7554,7 +7555,8 @@
                                 bdi: meta.bdi,
                                 desconto: meta.desconto,
                                 itens: docData.itens || [],
-                                totais: meta.totais
+                                totais: meta.totais,
+                                versao_atual: meta.versao || ''
                             };
                             gerarPDF_Profissional(dados);
                         } else {
@@ -7645,23 +7647,28 @@
                 };
 
                 const normalizarItemParaPDF = (item) => {
-                    const precoUnit = Number(item.preco_unitario || item.preco || 0);
-                    const coef = Number(item.coeficiente || 0);
-                    const total = Number(item.total || item.total_item || (precoUnit * coef)) || 0;
+                    const precoUnit = Number(item.preco_unitario || item.preco || item.p || 0);
+                    const coef = Number(item.coeficiente || item.coef || item.c || 0);
+                    const total = Number(item.total || item.total_item || item.t || (precoUnit * coef)) || 0;
 
                     // Mapeamento de nomes de grupo para padrão de exibição
-                    const rawGrupo = (item.tipo_grupo || item.grupo || 'GERAL').toUpperCase();
+                    const rawGrupo = (item.tipo_grupo || item.grupo || item.g || 'GERAL').toUpperCase();
                     let grupoDisplay = rawGrupo;
                     if (rawGrupo === 'MAO_DE_OBRA' || rawGrupo === 'MAO DE OBRA') grupoDisplay = 'MÃO DE OBRA';
                     else if (rawGrupo === 'SERVICO' || rawGrupo === 'SERVICOS') grupoDisplay = 'SERVIÇO';
                     else if (rawGrupo === 'MATERIAL' || rawGrupo === 'MATERIAIS') grupoDisplay = 'MATERIAL';
 
+                    // Fallbacks para Código e Descrição
+                    const codigo = item.codigo_insumo || item.codigo_item || item.codigo || item.cod || '-';
+                    const descricao = item.descricao_insumo || item.descricao_item || item.descricao || item.desc || '-';
+                    const fonte = item.origem || item.fonte || item.fonte_insumo || item.tabela || (item.retroativo ? 'COTAÇÃO' : '-');
+
                     return {
-                        origem: item.origem || item.fonte || '-',
-                        versao: formatarVersao(item.versao || item.data_tabela || item.data_referencia || item.retroativo?.dataIni || '-'),
-                        codigo: item.codigo_insumo || item.codigo || '-',
-                        descricao: item.descricao_insumo || item.descricao || '-',
-                        unidade: item.unidade || '-',
+                        origem: fonte,
+                        versao: formatarVersao(item.versao || item.data_tabela || item.data_referencia || item.referencia_tabela || item.retroativo?.dataIni || '-'),
+                        codigo: codigo,
+                        descricao: descricao,
+                        unidade: item.unidade || item.unid || '-',
                         coeficiente: coef,
                         preco_unitario: precoUnit,
                         total: total,
@@ -7672,215 +7679,212 @@
                 };
 
                 // --------------------------------------------------------------
-                // FUNÇÃO GERAR PDF (Profissional) - Com Template SOP (pdf-lib)
+                // FUNÇÃO GERAR PDF (Clone Visual 1:1) - Utilizando html2pdf.js
                 // --------------------------------------------------------------
-                async function gerarPDF_Profissional(rawInput, options = {}) {
-                    const formatarNumero = (v, d = 2) => Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
+                async function gerarPDF_Profissional(rawInput) {
+                    if (!rawInput) return;
 
-                    const dados = {
-                        codigo: rawInput?.codigo || rawInput?.meta?.codigo || 'S/C',
-                        descricao: rawInput?.descricao || rawInput?.meta?.descricao || 'SEM DESCRIÇÃO',
-                        unidade: rawInput?.unidade || rawInput?.meta?.unidade || '-',
-                        data_base: rawInput?.data_base || rawInput?.meta?.data_base || null,
-                        bdi: rawInput?.bdi || rawInput?.meta?.bdi || '0,00',
-                        desconto: rawInput?.desconto || rawInput?.meta?.desconto || '0,00',
-                        itens: rawInput?.itens || []
-                    };
-                    const mode = options.output || 'save';
-                    const { jsPDF } = window.jspdf;
+                    // Feedback visual instantâneo
+                    const btnsBaixar = document.querySelectorAll('.btn-action-baixar, .btn-outline-success');
+                    const originalTexts = Array.from(btnsBaixar).map(b => b.innerHTML);
+                    btnsBaixar.forEach(b => {
+                        b.disabled = true;
+                        b.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+                    });
 
-                    const doc = new jsPDF();
-                    const larguraPagina = doc.internal.pageSize.getWidth();
-                    const verdeSOP = [0, 143, 61];
+                    try {
+                        const { jsPDF } = window.jspdf;
+                        const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+                        const verdeSOP = [0, 143, 61];
+                        const cinzaHeader = [242, 242, 242];
+                        const cinzaTexto = [100, 100, 100];
 
-                    // --- CABEÇALHO SIMPLIFICADO (Igual ao Modal) ---
-                    let yPos = 15;
+                        const fCur = (v) => Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        const fNum4 = (v) => Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
 
-                    // Box SOP-CE (Verde Retangular)
-                    doc.setFillColor(...verdeSOP);
-                    doc.roundedRect(14, yPos, 22, 12, 1, 1, "F");
-                    doc.setTextColor(255, 255, 255);
-                    doc.setFont("helvetica", "bold");
-                    doc.setFontSize(10);
-                    doc.text("SOP-CE", 25, yPos + 7.5, { align: "center" });
+                        // 1. Cabeçalho Institucional SOP
+                        doc.setFillColor(...verdeSOP); doc.roundedRect(14, 10, 20, 10, 1, 1, 'F');
+                        doc.setTextColor(255, 255, 255); doc.setFontSize(9); doc.setFont("helvetica", "bold");
+                        doc.text("SOP-CE", 24, 16.5, { align: "center" });
 
-                    // Texto Governo
-                    doc.setTextColor(...verdeSOP);
-                    doc.setFontSize(10);
-                    doc.text("ESTADO DO CEARÁ", 40, yPos + 5);
-                    doc.setTextColor(33, 37, 41);
-                    doc.setFontSize(7.5);
-                    doc.text("SUPERINTENDÊNCIA DE OBRAS PÚBLICAS", 40, yPos + 9);
+                        doc.setTextColor(...verdeSOP); doc.setFontSize(10); doc.text("ESTADO DO CEARÁ", 38, 14);
+                        doc.setTextColor(60, 60, 60); doc.setFontSize(7); doc.text("SUPERINTENDÊNCIA DE OBRAS PÚBLICAS", 38, 18);
 
-                    // Lado Direito
-                    doc.setTextColor(33, 37, 41);
-                    doc.setFontSize(12);
-                    doc.text("COMPOSIÇÃO ANALÍTICA", larguraPagina - 14, yPos + 5, { align: "right" });
-                    doc.setTextColor(108, 117, 125);
-                    doc.setFontSize(6.5);
-                    doc.text("GEROA - GERÊNCIA DE ORÇAMENTOS E AVALIAÇÃO DE IMÓVEIS", larguraPagina - 14, yPos + 9, { align: "right" });
+                        doc.setTextColor(0, 0, 0); doc.setFontSize(11); doc.text("COMPOSIÇÃO ANALÍTICA", 196, 14, { align: "right" });
+                        doc.setTextColor(...cinzaTexto); doc.setFontSize(6); doc.text("GEROA - GERÊNCIA DE ORÇAMENTOS E AVALIAÇÃO DE IMÓVEIS", 196, 18, { align: "right" });
 
-                    yPos += 16;
-                    doc.setDrawColor(222, 226, 230);
-                    doc.line(14, yPos, larguraPagina - 14, yPos);
-                    yPos += 6;
+                        doc.setDrawColor(200); doc.line(14, 22, 196, 22);
 
-                    // --- METADADOS (Grid Simples) ---
-                    const drawMetaField = (label, value, x, w, isLast = false) => {
-                        doc.setFontSize(6);
-                        doc.setTextColor(108, 117, 125);
-                        doc.setFont("helvetica", "bold");
-                        doc.text(label.toUpperCase(), x + 2, yPos + 4);
+                        // 2. Metadados Grid (Ocupando todo o espaço com alinhamento proporcional)
+                        doc.setDrawColor(220); doc.setFillColor(255);
+                        doc.rect(14, 25, 182, 16, 'D');
+
+                        doc.setFontSize(6); doc.setTextColor(150);
+                        doc.text("CÓDIGO / VERSÃO", 16, 29);
+                        doc.text("DESCRIÇÃO DA COMPOSIÇÃO", 50, 29);
+                        doc.text("UNID.", 158, 29, { align: "center" });
+                        doc.text("BDI / DESC.", 185, 29, { align: "center" });
+
+                        doc.setFontSize(8); doc.setTextColor(0); doc.setFont("helvetica", "bold");
+                        doc.text(`${rawInput.codigo || 'S/C'} ${rawInput.versao_atual || ''}`, 16, 35);
+
+                        const descLines = doc.splitTextToSize((rawInput.descricao || '').toUpperCase(), 98);
+                        doc.text(descLines, 50, 35);
+
+                        doc.setFontSize(9);
+                        doc.text(rawInput.unidade || '-', 158, 35, { align: "center" });
 
                         doc.setFontSize(8);
-                        doc.setTextColor(33, 37, 41);
-                        doc.setFont("helvetica", "bold");
-                        const valText = doc.splitTextToSize(value.toString().toUpperCase(), w - 4);
-                        doc.text(valText, x + 2, yPos + 9);
+                        doc.setTextColor(0, 80, 200); doc.text(`${rawInput.bdi || '0,00'}%`, 185, 34, { align: "center" });
+                        doc.setTextColor(200, 0, 0); doc.text(`${rawInput.desconto || '0,00'}%`, 185, 38, { align: "center" });
 
-                        doc.setDrawColor(222, 226, 230);
-                        doc.rect(x, yPos, w, 12, "D");
-                    };
+                        // 3. Preparação dos Itens (Utilizando normalizarItemParaPDF para consistência total com a Modal)
+                        const itensRaw = rawInput.itens || [];
+                        const itens = itensRaw.map(normalizarItemParaPDF);
+                        const retroativos = [];
 
-                    drawMetaField("Código", dados.codigo, 14, 25);
-                    drawMetaField("Descrição da Composição", dados.descricao, 39, 105);
-                    drawMetaField("Unid.", dados.unidade, 144, 15);
+                        const body = [];
+                        const ordemGrupos = ['MÃO DE OBRA', 'MATERIAL', 'EQUIPAMENTOS', 'SERVIÇO', 'GERAL'];
+                        const itensAgrupados = itens.reduce((acc, item) => {
+                            const g = item.grupo || 'GERAL';
+                            if (!acc[g]) acc[g] = [];
+                            acc[g].push(item);
+                            return acc;
+                        }, {});
 
-                    // Box Taxas
-                    doc.rect(159, yPos, larguraPagina - 159 - 14, 12, "D");
-                    doc.setFontSize(5.5);
-                    doc.setTextColor(108, 117, 125);
-                    doc.text("TAXAS:", 161, yPos + 3.5);
-                    doc.setFontSize(6.5);
-                    doc.setTextColor(0, 123, 255);
-                    doc.text(`BDI: ${dados.bdi}%`, 161, yPos + 7);
-                    doc.setTextColor(220, 53, 69);
-                    doc.text(`DESC: ${dados.desconto}%`, 161, yPos + 10.5);
+                        const gruposDisponiveis = Object.keys(itensAgrupados).sort((a, b) => {
+                            const idxA = ordemGrupos.indexOf(a);
+                            const idxB = ordemGrupos.indexOf(b);
+                            return (idxA === -1 ? 99 : idxA) - (idxB === -1 ? 99 : idxB);
+                        });
 
-                    yPos += 18;
+                        let totalSimples = 0;
 
-                    // --- TABELA DE ITENS ---
-                    const itensRaw = dados.itens || [];
-                    const itens = itensRaw.map(normalizarItemParaPDF);
+                        gruposDisponiveis.forEach(g => {
+                            body.push([{ content: g.toUpperCase(), colSpan: 8, styles: { halign: 'center', fillColor: cinzaHeader, fontStyle: 'bold', textColor: 0 } }]);
 
-                    const itensOrdenados = [...itens].sort((a, b) => {
-                        const ordem = { 'MÃO DE OBRA': 1, 'MATERIAL': 2, 'EQUIPAMENTOS': 3, 'SERVIÇO': 4, 'GERAL': 99 };
-                        return (ordem[a.grupo] || 99) - (ordem[b.grupo] || 99);
-                    });
+                            let subtotalGrupo = 0;
+                            itensAgrupados[g].forEach(i => {
+                                let fonteStr = i.origem;
+                                if ((i.origem === 'SEINFRA' || i.origem === 'SINAPI') && i.referencia) {
+                                    const refLabel = i.referencia.toLowerCase().includes('deson') ? 'Deson.' : 'Oner.';
+                                    fonteStr += `\n(${refLabel})`;
+                                }
 
-                    let tableBody = [];
-                    let currentGroup = '';
-                    let totalSimples = 0;
+                                body.push([
+                                    fonteStr,
+                                    i.versao || '-',
+                                    i.codigo || '-',
+                                    i.descricao || '-',
+                                    i.unidade || '-',
+                                    fNum4(i.coeficiente),
+                                    fCur(i.preco_unitario),
+                                    fCur(i.total)
+                                ]);
+                                subtotalGrupo += i.total;
+                                totalSimples += i.total;
+                                if (i.retroativo) retroativos.push({ ...i, codInsumo: i.codigo, descInsumo: i.descricao });
+                            });
 
-                    itensOrdenados.forEach(item => {
-                        const grupo = item.grupo;
-                        totalSimples += item.total;
-
-                        if (grupo !== currentGroup) {
-                            currentGroup = grupo;
-                            tableBody.push([{
-                                content: currentGroup.toUpperCase(),
-                                colSpan: 8,
-                                styles: { halign: 'center', fontStyle: 'bold', fillColor: [242, 242, 242], textColor: [50, 50, 50], fontSize: 7, cellPadding: 1.5 }
+                            body.push([{
+                                content: `TOTAL ${g}`,
+                                colSpan: 7,
+                                styles: { halign: 'right', fontStyle: 'bold', textColor: cinzaTexto, fontSize: 6.5 }
+                            }, {
+                                content: fCur(subtotalGrupo),
+                                styles: { halign: 'right', fontStyle: 'bold' }
                             }]);
+                        });
+
+                        doc.autoTable({
+                            startY: 45,
+                            head: [['FONTE', 'VERSÃO', 'CÓDIGO', 'DESCRIÇÃO DO INSUMO', 'UNID', 'COEF.', 'P. UNIT.', 'TOTAL']],
+                            body: body,
+                            theme: 'grid',
+                            styles: { fontSize: 7, cellPadding: 1.5, valign: 'middle', overflow: 'linebreak' },
+                            headStyles: { fillColor: cinzaHeader, textColor: 0, halign: 'center', fontStyle: 'bold' },
+                            columnStyles: {
+                                0: { halign: 'center', cellWidth: 15 },
+                                1: { halign: 'center', cellWidth: 15 },
+                                2: { halign: 'center', cellWidth: 18 },
+                                3: { cellWidth: 70 },
+                                4: { halign: 'center', cellWidth: 12 },
+                                5: { halign: 'center', cellWidth: 17 },
+                                6: { halign: 'right', cellWidth: 17 },
+                                7: { halign: 'right', cellWidth: 18 }
+                            },
+                            margin: { left: 14, right: 14 },
+                            didDrawPage: (data) => {
+                                doc.setFontSize(6); doc.setTextColor(150);
+                                doc.text(`Painel GECOPE/SOP | Página ${data.pageNumber} | Código: ${rawInput.codigo || '-'}`, 14, 285);
+                            }
+                        });
+
+                        // 4. Totais Finais
+                        let y = (doc.lastAutoTable ? doc.lastAutoTable.finalY : 45) + 6;
+                        const drawTot = (label, val, col = [0, 0, 0], bold = false) => {
+                            if (y > 270) { doc.addPage(); y = 20; }
+                            doc.setTextColor(...col); doc.setFontSize(bold ? 10 : 7); doc.setFont("helvetica", bold ? "bold" : "normal");
+                            doc.text(label.toUpperCase(), 155, y, { align: 'right' });
+                            doc.text(`R$ ${fCur(val)}`, 196, y, { align: 'right' });
+                            y += bold ? 8 : 5;
+                        };
+
+                        const bdiVal = (totalSimples * (parseFloat(rawInput.bdi || 0) / 100));
+                        const tBDI = totalSimples + bdiVal;
+                        const descVal = (tBDI * (parseFloat(rawInput.desconto || 0) / 100));
+                        const pFinal = tBDI - descVal;
+
+                        drawTot("Total Simples", totalSimples);
+                        if (bdiVal > 0) drawTot(`(+) BDI (${rawInput.bdi}%)`, bdiVal, [0, 80, 200]);
+                        if (descVal > 0) drawTot(`(-) Desconto (${rawInput.desconto}%)`, descVal, [200, 0, 0]);
+                        doc.setDrawColor(...verdeSOP); doc.line(135, y - 2, 196, y - 2); y += 3;
+                        drawTot("Preço Total Unitário", pFinal, verdeSOP, true);
+
+                        // 5. Memória de Cálculo (Página Extra conforme Modal)
+                        if (retroativos.length > 0) {
+                            doc.addPage();
+                            doc.setTextColor(...verdeSOP); doc.setFontSize(12); doc.setFont("helvetica", "bold");
+                            doc.text("METODOLOGIA DE CÁLCULO (RETROAÇÃO DE PREÇOS)", 14, 20);
+
+                            doc.setTextColor(80, 80, 80); doc.setFontSize(8); doc.setFont("helvetica", "normal");
+                            const intro = "Os custos obtidos via cotação de mercado foram retroagidos financeiramente para a Data-Base do orçamento, garantindo a homogeneidade temporal dos preços.";
+                            doc.text(doc.splitTextToSize(intro, 182), 14, 26);
+
+                            let currentY = 35;
+                            retroativos.forEach(r => {
+                                if (currentY > 240) { doc.addPage(); currentY = 20; }
+                                doc.setTextColor(0); doc.setFontSize(9); doc.setFont("helvetica", "bold");
+                                doc.text(`Item: ${r.codInsumo} - ${r.descInsumo}`, 14, currentY);
+                                currentY += 5;
+
+                                const ret = r.retroativo;
+                                const fator = (Number(ret.indFin) / Number(ret.indIni)) || 1;
+                                doc.autoTable({
+                                    startY: currentY,
+                                    head: [['Parâmetro', 'Descrição / Valor']],
+                                    body: [
+                                        ['Valor Cotado (A)', `R$ ${fCur(ret.base)}`],
+                                        ['Data Cotação / Índice (C)', `${ret.dataIni?.split('-').reverse().join('/') || '-'} | ${fNum4(ret.indIni)}`],
+                                        ['Data-Base / Índice (E)', `${ret.dataFin?.split('-').reverse().join('/') || '-'} | ${fNum4(ret.indFin)}`],
+                                        ['Fator (E/C)', fator.toFixed(4)],
+                                        ['Preço Adotado (A x Fator)', { content: `R$ ${fCur(Number(ret.base) * fator)}`, styles: { fontStyle: 'bold', textColor: verdeSOP } }]
+                                    ],
+                                    theme: 'grid',
+                                    styles: { fontSize: 8, cellPadding: 2 },
+                                    headStyles: { fillColor: cinzaHeader, textColor: 0 },
+                                    margin: { left: 14, right: 70 }
+                                });
+                                currentY = doc.lastAutoTable.finalY + 12;
+                            });
                         }
 
-                        // Memória de Cálculo
-                        let fullDesc = item.descricao;
-                        if (item.retroativo) {
-                            const r = item.retroativo;
-                            const dCot = r.dataIni ? r.dataIni.split('-').reverse().join('/') : '-';
-                            const dBase = r.dataFin ? r.dataFin.split('-').reverse().join('/') : '-';
-                            const fator = (Number(r.indFin) / Number(r.indIni)) || 1;
-
-                            fullDesc += `\n\n[MEMÓRIA DE CÁLCULO - RETROAÇÃO]\nValor Cotado: R$ ${formatarNumero(r.base)} | Data: ${dCot} | Índice: ${formatarNumero(r.indIni, 3)}\nData-Base: ${dBase} | Índice Base: ${formatarNumero(r.indFin, 3)} | Fator: ${fator.toFixed(4)}`;
-                        }
-
-                        // Lógica de exibição da Fonte com Referência (Onerada/Desonerada) no PDF
-                        let fonteCell = item.origem;
-                        if ((item.origem === 'SEINFRA' || item.origem === 'SINAPI') && item.referencia) {
-                            const refLabel = item.referencia.toLowerCase().includes('deson') ? 'Desonerada' : 'Onerada';
-                            fonteCell = { content: `${item.origem}\n${refLabel}`, styles: { fontSize: 6, fontStyle: 'normal' } };
-                        }
-
-                        tableBody.push([
-                            fonteCell,
-                            item.versao,
-                            item.codigo,
-                            { content: fullDesc, styles: { halign: 'justify', fontStyle: 'normal' } },
-                            item.unidade,
-                            formatarNumero(item.coeficiente, 4),
-                            formatarNumero(item.preco_unitario),
-                            { content: formatarNumero(item.total), styles: { fontStyle: 'normal' } }
-                        ]);
-                    });
-
-                    doc.autoTable({
-                        startY: yPos,
-                        head: [['FONTE', 'VERSÃO', 'CÓDIGO', 'DESCRIÇÃO DO INSUMO', 'UNID', 'COEF.', 'P. UNIT.', 'TOTAL']],
-                        body: tableBody,
-                        theme: 'grid',
-                        styles: { fontSize: 7, cellPadding: 1.5, valign: 'middle' },
-                        headStyles: { fillColor: [52, 58, 64], textColor: [255, 255, 255], halign: 'center', fontStyle: 'bold' },
-                        columnStyles: {
-                            0: { cellWidth: 12, halign: 'center' },
-                            1: { cellWidth: 12, halign: 'center' },
-                            2: { cellWidth: 15, halign: 'center' },
-                            3: { cellWidth: 'auto' },
-                            4: { cellWidth: 8, halign: 'center' },
-                            5: { cellWidth: 12, halign: 'center' },
-                            6: { cellWidth: 17, halign: 'right' },
-                            7: { cellWidth: 10, halign: 'right' }
-                        },
-                        margin: { left: 14, right: 14, top: 40, bottom: 20 },
-                        didDrawPage: (data) => {
-                            // Rodapé Simples
-                            doc.setFontSize(6);
-                            doc.setTextColor(150);
-                            doc.text(`Gerado via Painel GECOPE/SOP | Página ${data.pageNumber} | ${new Date().toLocaleString('pt-BR')}`, 14, doc.internal.pageSize.height - 10);
-                        }
-                    });
-
-                    // --- RODAPÉ DE TOTAIS (Estilo Modal) ---
-                    let finalY = doc.lastAutoTable.finalY + 5;
-                    const checkSpace = (h) => { if (finalY + h > 280) { doc.addPage(); finalY = 20; } };
-
-                    const bdiVal = parseFloat((dados.bdi || 0).toString().replace(',', '.')) / 100;
-                    const descVal = parseFloat((dados.desconto || 0).toString().replace(',', '.')) / 100;
-                    const valorBDI = totalSimples * bdiVal;
-                    const totalComBDI = totalSimples + valorBDI;
-                    const valorDesconto = totalComBDI * descVal;
-                    const precoFinal = totalComBDI - valorDesconto;
-
-                    const drawFooterLine = (label, value, color = [50, 50, 50], isBold = false) => {
-                        checkSpace(5);
-                        doc.setFontSize(7);
-                        doc.setTextColor(...color);
-                        doc.setFont("helvetica", isBold ? "bold" : "normal");
-                        doc.text(label.toUpperCase(), larguraPagina - 55, finalY);
-                        doc.text(`R$ ${formatarNumero(value)}`, larguraPagina - 14, finalY, { align: 'right' });
-                        finalY += 5;
-                    };
-
-                    drawFooterLine("Total Simples", totalSimples);
-                    if (valorBDI > 0) drawFooterLine(`BDI Aplicado (${dados.bdi}%)`, valorBDI, [0, 123, 255]);
-                    if (valorDesconto > 0) drawFooterLine(`Desconto Aplicado (${dados.desconto}%)`, valorDesconto, [220, 53, 69]);
-
-                    // Preço Final
-                    checkSpace(12);
-                    finalY += 2;
-                    doc.setDrawColor(...verdeSOP);
-                    doc.setLineWidth(0.5);
-                    doc.line(larguraPagina - 90, finalY - 4, larguraPagina - 14, finalY - 4);
-
-                    doc.setFontSize(10);
-                    doc.setTextColor(...verdeSOP);
-                    doc.setFont("helvetica", "bold");
-                    doc.text("PREÇO TOTAL UNITÁRIO", larguraPagina - 85, finalY + 3);
-                    doc.setFontSize(12);
-                    doc.text(`R$ ${formatarNumero(precoFinal)}`, larguraPagina - 14, finalY + 3, { align: 'right' });
-
-                    doc.save(`${dados.codigo}_Analitica.pdf`);
+                        doc.save(`${rawInput.codigo || 'SOP'}_Analitica.pdf`);
+                    } catch (e) {
+                        alert("Erro: " + e.message);
+                    } finally {
+                        btnsBaixar.forEach((b, i) => { b.disabled = false; b.innerHTML = originalTexts[i]; });
+                    }
                 }
 
                 // NOVA FUNÇÃO: VISUALIZAR COMPOSIÇÃO (Fetch JSON -> Gerar PDF Blob)
@@ -8172,37 +8176,35 @@
                             </div>
 
                             <!-- Metadados da Composição Melhorados -->
-                            <div class="row g-0 mb-4 p-3 border rounded bg-white shadow-sm align-items-center">
+                            <div class="row g-0 mb-4 p-3 border rounded bg-white shadow-sm align-items-stretch">
                                 <!-- Lado Esquerdo: Identificação -->
-                                <div class="col-md-9 d-flex align-items-center">
-                                    <div class="pe-4 border-end" style="min-width: 170px; white-space: nowrap;">
-                                        <label class="text-muted fw-bold text-uppercase d-block mb-1" style="font-size: 0.7rem; letter-spacing: 0.5px;">CÓDIGO / VERSÃO</label>
+                                <div class="col-md-8 d-flex flex-column justify-content-center pe-3 border-end">
+                                    <div class="mb-2">
+                                        <label class="text-muted fw-bold text-uppercase d-block mb-1" style="font-size: 0.65rem; letter-spacing: 0.5px;">CÓDIGO / VERSÃO</label>
                                         <div class="d-flex align-items-center">
-                                            <span class="fw-bold text-dark fs-6">${codigo}</span>
-                                            ${dados.versao_atual ? `<span class="badge bg-secondary ms-2" style="font-size: 0.65rem; padding: 2px 6px;">${dados.versao_atual}</span>` : ''}
+                                            <span class="fw-bold text-dark" style="font-size: 0.9rem;">${codigo}</span>
+                                            ${dados.versao_atual ? `<span class="badge bg-secondary ms-2" style="font-size: 0.6rem; padding: 2px 5px;">${dados.versao_atual}</span>` : ''}
                                         </div>
                                     </div>
-                                    <div class="ps-4 flex-grow-1" style="padding-right: 40px;">
-                                        <label class="text-muted fw-bold text-uppercase d-block mb-1" style="font-size: 0.7rem; letter-spacing: 0.5px;">DESCRIÇÃO DA COMPOSIÇÃO</label>
-                                        <div class="fw-bold text-dark fs-6 text-uppercase" style="line-height: 1.5; text-align: justify; text-justify: inter-word; width: 100%;">${descricao}</div>
+                                    <div>
+                                        <label class="text-muted fw-bold text-uppercase d-block mb-1" style="font-size: 0.65rem; letter-spacing: 0.5px;">DESCRIÇÃO DA COMPOSIÇÃO</label>
+                                        <div class="fw-bold text-dark text-uppercase" style="font-size: 0.9rem; line-height: 1.3; text-align: justify;">${descricao}</div>
                                     </div>
                                 </div>
                                 <!-- Lado Direito: Índices e Unidade -->
-                                <div class="col-md-3 d-flex justify-content-end align-items-center text-end border-start ps-4">
-                                    <div class="pe-4 border-end">
-                                        <label class="text-muted fw-bold text-uppercase d-block mb-1" style="font-size: 0.7rem; letter-spacing: 0.5px;">UNID.</label>
-                                        <span class="fw-bold text-dark fs-5">${unidade}</span>
+                                <div class="col-md-4 d-flex align-items-center justify-content-between ps-3">
+                                    <div class="text-center flex-grow-1 border-end">
+                                        <label class="text-muted fw-bold text-uppercase d-block mb-1" style="font-size: 0.65rem; letter-spacing: 0.5px;">UNID.</label>
+                                        <span class="fw-bold text-dark fs-4">${unidade}</span>
                                     </div>
-                                    <div class="ps-4">
-                                        <div class="d-flex flex-column gap-1" style="min-width: 85px;">
-                                            <div class="d-flex justify-content-between align-items-center gap-3">
-                                                <span class="text-muted fw-bold" style="font-size: 0.75rem;">BDI:</span>
-                                                <span class="fw-bold text-primary fs-6" style="white-space: nowrap;">${bdiText}</span>
-                                            </div>
-                                            <div class="d-flex justify-content-between align-items-center gap-3">
-                                                <span class="text-muted fw-bold" style="font-size: 0.75rem;">DESC:</span>
-                                                <span class="fw-bold text-danger fs-6" style="white-space: nowrap;">${descText}</span>
-                                            </div>
+                                    <div class="text-end ps-3" style="min-width: 100px;">
+                                        <div class="mb-1">
+                                            <span class="text-muted fw-bold me-2" style="font-size: 0.7rem;">BDI:</span>
+                                            <span class="fw-bold text-primary" style="font-size: 1rem;">${bdiText}</span>
+                                        </div>
+                                        <div>
+                                            <span class="text-muted fw-bold me-2" style="font-size: 0.7rem;">DESC:</span>
+                                            <span class="fw-bold text-danger" style="font-size: 1rem;">${descText}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -8211,7 +8213,7 @@
                             <!-- Tabela de Itens (Compacta com table-sm) -->
                             <div class="table-responsive">
                                 <table class="table table-bordered table-sm align-middle mb-0" style="font-size: 0.82rem;">
-                                    <thead class="bg-dark text-white text-center" style="background-color: #343a40 !important;">
+                                    <thead class="text-dark text-center" style="background-color: #f2f2f2 !important; border-bottom: 2px solid #dee2e6;">
                                         <tr style="font-size: 0.75rem;">
                                             <th style="width: 5%">FONTE</th>
                                             <th style="width: 5%">VERSÃO</th>
