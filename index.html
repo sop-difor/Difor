@@ -988,6 +988,22 @@
             color: #fff;
         }
 
+        /* Checkbox Prioritário */
+        .checkbox-prioritario {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            accent-color: var(--sop-green);
+        }
+
+        .checkbox-prioritario:hover {
+            opacity: 0.8;
+        }
+
+        .checkbox-prioritario:checked {
+            box-shadow: 0 0 4px rgba(13, 110, 253, 0.5);
+        }
+
         /* CSS MULTI-SELECT */
         .multiselect-container {
             position: relative;
@@ -2003,7 +2019,7 @@
 
                     <div class="bg-white p-3 rounded border shadow-sm mb-3">
                         <div class="row g-2 align-items-end">
-                            <div class="col-6 col-md-2">
+                            <div class="col-12 col-md-2">
                                 <label class="form-label small text-muted fw-bold text-uppercase mb-1">Metas</label>
                                 <select class="form-select form-select-sm border-secondary-subtle"
                                     id="meetingMetaSelect">
@@ -2014,23 +2030,24 @@
                                     <option value="Sem meta">Sem meta</option>
                                 </select>
                             </div>
-                            <div class="col-12 col-md-3">
+                            <div class="col-12 col-md-2">
+                                <label class="form-label small text-muted fw-bold text-uppercase mb-1">Prioritário</label>
+                                <select class="form-select form-select-sm border-secondary-subtle"
+                                    id="meetingPrioritarioSelect">
+                                    <option value="">Todos</option>
+                                    <option value="Sim">Prioritário</option>
+                                    <option value="Não">Não Prioritário</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-2">
                                 <label class="form-label small text-muted fw-bold text-uppercase mb-1">Fiscal</label>
                                 <select class="form-select form-select-sm border-secondary-subtle fw-bold text-primary"
                                     id="meetingFiscalSelect"></select>
                             </div>
-                            <div class="col-6 col-md-2">
+                            <div class="col-12 col-md-2">
                                 <label class="form-label small text-muted fw-bold text-uppercase mb-1">Status</label>
                                 <select class="form-select form-select-sm border-secondary-subtle"
                                     id="meetingStatusSelect"></select>
-                            </div>
-                            <div class="col-auto">
-                                <div class="btn-group" role="group">
-                                    <button type="button" class="btn btn-outline-secondary btn-sm" id="btnPrevFiscal"><i
-                                            class="bi bi-caret-left-fill"></i> Anterior</button>
-                                    <button type="button" class="btn btn-outline-secondary btn-sm"
-                                        id="btnNextFiscal">Próximo <i class="bi bi-caret-right-fill"></i></button>
-                                </div>
                             </div>
                             <div class="col">
                                 <label class="form-label small text-muted fw-bold text-uppercase mb-1">Buscar</label>
@@ -4220,7 +4237,7 @@
                 }
 
                 // LOGIC: REUNIÃO
-                const mt = { meta: document.getElementById("meetingMetaSelect"), fiscal: document.getElementById("meetingFiscalSelect"), status: document.getElementById("meetingStatusSelect"), prev: document.getElementById("btnPrevFiscal"), next: document.getElementById("btnNextFiscal"), search: document.getElementById("meetingSearch"), body: document.getElementById("meetingTableBody"), note: document.getElementById("meetingFooterNote") };
+                const mt = { meta: document.getElementById("meetingMetaSelect"), prioritario: document.getElementById("meetingPrioritarioSelect"), fiscal: document.getElementById("meetingFiscalSelect"), status: document.getElementById("meetingStatusSelect"), search: document.getElementById("meetingSearch"), body: document.getElementById("meetingTableBody"), note: document.getElementById("meetingFooterNote") };
                 let mtBase = [];
                 function getMetaDate(row, setD) {
                     const key = `meta:${row.processo}`;
@@ -4244,11 +4261,27 @@
                     if ((s.includes("EM ANALIS") || s === "ANALISE") && !s.includes("FISCAL") && !s.includes("REAN")) return 4;
                     if (s.includes("AGUAR") && s.includes("APROVA")) return 5;
                     if (s.includes("FISCAL") && s.includes("ANALIS") && !s.includes("DEVOLVIDO")) return 6;
-                    if (s.includes("DEVOLVIDO") || s.includes("CONTRATANTE")) return 7;
-                    if (s === "APROVADO" || (s.includes("APROVADO") && !s.includes("AGUAR"))) return 8;
-                    if (s.includes("ARQUIVADO")) return 9;
+                    if (s.includes("DEVOLVIDO")) return 7;
+                    if (s.includes("CONTRATANTE")) return 8;
+                    if (s === "APROVADO" || (s.includes("APROVADO") && !s.includes("AGUAR"))) return 9;
+                    if (s.includes("ARQUIVADO")) return 10;
                     return 99;
                 }
+
+                // Funções para gerenciar processos prioritários (marcador simples)
+                function isPrioritario(row) {
+                    const key = `prioritario:${row.processo}`;
+                    return localStorage.getItem(key) === 'true';
+                }
+                function setPrioritario(processo, isPriority) {
+                    const key = `prioritario:${processo}`;
+                    if (isPriority) {
+                        localStorage.setItem(key, 'true');
+                    } else {
+                        localStorage.removeItem(key);
+                    }
+                }
+
                 let currentSort = { col: null, dir: 'asc' };
                 function changeSort(columnKey) {
                     if (currentSort.col === columnKey) { currentSort.dir = currentSort.dir === 'asc' ? 'desc' : 'asc'; }
@@ -4318,11 +4351,13 @@
                     const f = getSelectedValues(mt.fiscal).filter(v => v !== "");
                     const s = getSelectedValues(mt.status).filter(v => v !== "");
                     const m = getSelectedValues(mt.meta).filter(v => v !== "");
+                    const priorFilt = getSelectedValues(mt.prioritario).filter(v => v !== "");
                     const q = mt.search.value.toLowerCase();
 
                     if (uRole !== 'fiscal' && f.length > 0) rows = rows.filter(d => f.includes(d.fiscal));
                     if (s.length > 0) rows = rows.filter(d => s.includes(d.status));
                     if (m.length > 0) rows = rows.filter(d => m.includes(getMetaSt(d)));
+                    if (priorFilt.length > 0) rows = rows.filter(d => priorFilt.includes(isPrioritario(d) ? "Sim" : "Não"));
                     if (q) {
                         rows = rows.filter(d => {
                             const proc = (d.processo || "").toLowerCase(); const contrat = (d.contratante || "").toLowerCase(); const desc = (d.descricao || "").toLowerCase(); const analistaNome = (d.nomeAnalista || "").toLowerCase();
@@ -4338,7 +4373,7 @@
                     document.getElementById("card_proc_dias").textContent = maxDias;
 
                     const columns = [
-                        { title: "Ações", width: "50px", key: null, align: "center" }, { title: "Processo", width: "200px", key: "processo", align: "start" }, { title: "Meta", width: "100px", key: "meta", align: "start" },
+                        { title: "Ações", width: "50px", key: null, align: "center" }, { title: "Prioritário", width: "80px", key: null, align: "center" }, { title: "Processo", width: "200px", key: "processo", align: "start" }, { title: "Meta", width: "100px", key: "meta", align: "start" },
                         { title: "Status", width: "146px", key: "status", align: "start" }, { title: "Analista", width: "100px", key: "analista", align: "center" }, { title: "Abertura", width: "100px", key: "abertura", align: "center" },
                         { title: "Dias", width: "100px", key: "dias", align: "center" }, { title: "Contratante", width: "100px", key: "contratante", align: "start" }, { title: "Contratada", width: "100px", key: "contratada", align: "start" }, { title: "Descrição", width: "auto", key: "descricao", align: "start" }
                     ];
@@ -4396,6 +4431,7 @@
                         return `
         <tr style="vertical-align: middle;">
             <td class="text-center">${uRole !== 'fiscal' ? `<button class="btn btn-sm btn-light border" onclick="abrirDetalhes('${escapeHTML(d.processo)}')" title="Ver detalhes"><i class="bi bi-eye-fill" style="color: var(--sop-blue);"></i></button>` : ''}</td>
+            <td class="text-center"><input type="checkbox" class="checkbox-prioritario" data-proc="${escapeHTML(d.processo)}" ${isPrioritario(d) ? 'checked' : ''} title="Marcar como prioritário" /></td>
             <td><div style="font-weight: 700; font-size: 0.95rem; color: #000; white-space: nowrap;">${escapeHTML(d.processo)}</div><div class="mt-1 text-muted" style="font-size: 0.75rem; font-weight: 500;"><i class="bi bi-person-fill me-1"></i>${escapeHTML(fiscalNome)}</div></td>
             <td><div class="mb-1"><span class="badge rounded-pill ${mCls}" style="font-size: 0.75rem;">${mSt}</span></div><input type="date" class="form-control form-control-sm" style="font-size: 0.75rem; padding: 2px 4px; height: auto;" data-proc="${escapeHTML(d.processo)}" value="${mIso}" title="Alterar Meta" ${uRole !== 'admin' ? 'disabled' : ''} /></td>
             <td><span class="badge rounded-pill ${stCls} badge-custom-size">${d.status}</span></td>
@@ -4416,18 +4452,13 @@
                             updateReuniao();
                         }
                     }));
-                }
-                function moveMeetingFiscal(d) {
-                    const fs = Array.from(new Set(mtBase.map(r => r.fiscal).filter(Boolean))).sort();
-                    const currentSelected = getSelectedValues(mt.fiscal);
-                    let idx = -1;
-                    if (currentSelected.length === 1) idx = fs.indexOf(currentSelected[0]);
-                    if (idx === -1) idx = d > 0 ? 0 : fs.length - 1; else idx += d;
-                    if (idx < 0) idx = fs.length - 1; if (idx >= fs.length) idx = 0;
-                    Array.from(mt.fiscal.options).forEach(o => o.selected = false);
-                    const newVal = fs[idx]; const opt = Array.from(mt.fiscal.options).find(o => o.value === newVal);
-                    if (opt) opt.selected = true;
-                    renderMultiSelectUI(mt.fiscal); updateReuniao();
+
+                    // Event listener para checkboxes de prioritário
+                    mt.body.querySelectorAll('.checkbox-prioritario').forEach(checkbox => checkbox.addEventListener('change', (e) => {
+                        const processo = e.target.dataset.proc;
+                        setPrioritario(processo, e.target.checked);
+                        updateReuniao();
+                    }));
                 }
                 function populateAllTabFilters() {
                     populateFinanceiroFilters();
@@ -4444,13 +4475,13 @@
                     ger.clear.addEventListener("click", (e) => { e.preventDefault(); clearGerencial(); });
                     pr.fiscal.addEventListener("change", updatePrazos); pr.status.addEventListener("change", updatePrazos);
                     pr.clear.addEventListener("click", (e) => { e.preventDefault(); clearPrazos(); });
-                    mt.meta.addEventListener("change", updateReuniao); mt.fiscal.addEventListener("change", updateReuniao); mt.status.addEventListener("change", updateReuniao); mt.prev.addEventListener("click", () => moveMeetingFiscal(-1)); mt.next.addEventListener("click", () => moveMeetingFiscal(1));
+                    mt.meta.addEventListener("change", updateReuniao); mt.prioritario.addEventListener("change", updateReuniao); mt.fiscal.addEventListener("change", updateReuniao); mt.status.addEventListener("change", updateReuniao);
                     // Debounce no search de reunião
                     mt.search.addEventListener("input", debounce(updateReuniao, 300));
 
                     document.getElementById("btn-reuniao-clear").addEventListener("click", (e) => {
                         e.preventDefault(); mt.search.value = "";
-                        [mt.meta, mt.fiscal, mt.status].forEach(el => { Array.from(el.options).forEach(o => o.selected = false); renderMultiSelectUI(el); });
+                        [mt.meta, mt.prioritario, mt.fiscal, mt.status].forEach(el => { Array.from(el.options).forEach(o => o.selected = false); renderMultiSelectUI(el); });
                         currentSort = { col: null, dir: 'asc' }; updateReuniao();
                     });
 
@@ -7376,7 +7407,14 @@
                                         <div class="small text-muted">CÓDIGO: <strong>${dadosPai.codigo}</strong> | UNIDADE: <strong>${dadosPai.unidade}</strong></div>
                                      </div><hr>`;
                         }
-                        const { data: itens } = await sbClient.from('tabelas_itens').select('*').eq('fonte', fonte).eq('versao', versao).eq('referencia_pai_cod', codigo);
+                        // 1. Tenta carregar a composição a partir da nova coluna JSON 'composicao' no registro pai
+                        let itens = (dadosPai && dadosPai.composicao) ? dadosPai.composicao : [];
+
+                        // 2. Fallback: Se não houver dados no JSON, busca na tabela auxiliar 'tabelas_itens' (método antigo)
+                        if (itens.length === 0) {
+                            const { data: itensDB } = await sbClient.from('tabelas_itens').select('*').eq('fonte', fonte).eq('versao', versao).eq('referencia_pai_cod', codigo);
+                            itens = itensDB || [];
+                        }
 
                         if (itens && itens.length > 0) {
                             html += `<div class="table-responsive">
