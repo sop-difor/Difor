@@ -2031,7 +2031,8 @@
                                 </select>
                             </div>
                             <div class="col-12 col-md-2">
-                                <label class="form-label small text-muted fw-bold text-uppercase mb-1">Prioritário</label>
+                                <label
+                                    class="form-label small text-muted fw-bold text-uppercase mb-1">Prioritário</label>
                                 <select class="form-select form-select-sm border-secondary-subtle"
                                     id="meetingPrioritarioSelect">
                                     <option value="">Todos</option>
@@ -7503,7 +7504,7 @@
                         // Subtotal do grupo
                         tabelaHtml += `
                             <tr style="font-size: 0.8rem; background-color: #f5f5f5; font-weight: bold; border-top: 1px solid #ddd;">
-                                <td colspan="7" style="padding: 0.6rem 0.5rem; text-align: right; color: #666;">TOTAL ${tipo}</td>
+                                <td colspan="7" style="padding: 0.6rem 0.5rem; text-align: right; color: #666;">TOTAL ${tipoFormatado}</td>
                                 <td style="padding: 0.6rem 0.5rem; text-align: right; color: #333;">${formatCurrency(subtotal)}</td>
                             </tr>
                         `;
@@ -7516,38 +7517,44 @@
 
                     // Monta HTML final com design profissional
                     const html = `
-                        <!-- Header com linha verde (inspirado SOP-CE) -->
-                        <div style="background-color: #fff; border-bottom: 3px solid #27a745; padding: 1.5rem;">
-                            <h5 class="mb-0 fw-bold text-dark" style="font-size: 1.2rem;">
-                                <i class="bi bi-file-earmark-text me-2" style="color: #27a745;"></i>COMPOSIÇÃO ANALÍTICA
-                            </h5>
-                            <small class="text-muted d-block mt-2">SINAPI - Sistema Nacional de Pesquisa de Custos e Índices da Construção Civil</small>
+                        <!-- Título e Subtítulo -->
+                        <div style="background-color: #fff; padding: 1.5rem 2rem 1rem 2rem;">
+                            <div style="display: flex; align-items: center; gap: 10px; color: #333;">
+                                <i class="bi bi-file-earmark-spreadsheet" style="color: #27a745; font-size: 1.6rem;"></i>
+                                <h4 class="mb-0 fw-bold" style="font-size: 1.25rem; color: #1a1a1a; letter-spacing: -0.5px;">COMPOSIÇÃO ANALÍTICA</h4>
+                            </div>
+                            <small class="text-muted d-block mt-1" style="font-size: 0.85rem; font-weight: 500;">
+                                SINAPI - Sistema Nacional de Pesquisa de Custos e Índices da Construção Civil
+                            </small>
                         </div>
 
-                        <!-- Metadados em card único com borda lateral verde, arredondado e efeito 3D -->
-                        <div style="padding: 1.5rem 1.5rem; background-color: #fafafa;">
-                            <div style="background: white; padding: 1.5rem 1.8rem; border-left: 5px solid #27a745; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.8); position: relative;">
-                                <div class="row g-3 align-items-center" style="min-height: 100px; display: flex; align-items: center;">
-                                    <!-- Código -->
-                                    <div class="col-md-2" style="border-right: 1px solid #e8e8e8; padding-right: 1.5rem;">
-                                        <small class="text-muted fw-bold d-block mb-2" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px;">Código</small>
-                                        <div class="fw-bold text-dark" style="font-size: 1.05rem;">${codigo}</div>
-                                    </div>
+                        <!-- Separador Verde SOP -->
+                        <div style="height: 4px; background-color: #27a745; width: 100%;"></div>
 
-                                    <!-- Descrição -->
-                                    <div class="col-md-7" style="padding: 0 1.5rem;">
-                                        <small class="text-muted fw-bold d-block mb-2" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px;">Descrição da Composição</small>
-                                        <div class="fw-bold text-dark" style="font-size: 0.95rem; line-height: 1.5; text-align: justify; color: #333;">
-                                            ${descricao}
-                                        </div>
-                                    </div>
+                        <!-- Área do Card de Metadados -->
+                        <div style="padding: 1.8rem 2rem; background-color: #fcfcfc;">
+                            <div style="background: white; border: 1px solid #eee; border-left: 6px solid #27a745; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.06); padding: 1.5rem 0rem; display: flex; align-items: center; min-height: 100px;">
+                                
+                                <!-- Seção Código -->
+                                <div style="flex: 0 0 15%; padding: 0 2rem; border-right: 1px solid #eee; height: 100%; display: flex; flex-direction: column; justify-content: center;">
+                                    <small class="text-muted fw-bold d-block mb-1" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px;">CÓDIGO</small>
+                                    <div style="font-size: 1.35rem; font-weight: 800; color: #1a1a1a; line-height: 1;">${codigo}</div>
+                                </div>
 
-                                    <!-- Unidade -->
-                                    <div class="col-md-3" style="border-left: 1px solid #e8e8e8; padding-left: 1.5rem;">
-                                        <small class="text-muted fw-bold d-block mb-2" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px;">Unidade</small>
-                                        <div class="fw-bold text-dark" style="font-size: 1.05rem;">${unidade}</div>
+                                <!-- Seção Descrição -->
+                                <div style="flex: 1; padding: 0 2.5rem; display: flex; flex-direction: column; justify-content: center;">
+                                    <small class="text-muted fw-bold d-block mb-1" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px;">DESCRIÇÃO DA COMPOSIÇÃO</small>
+                                    <div style="font-size: 1.05rem; font-weight: 800; color: #1a1a1a; line-height: 1.35; text-transform: uppercase; text-align: justify;">
+                                        ${descricao}
                                     </div>
                                 </div>
+
+                                <!-- Seção Unidade -->
+                                <div style="flex: 0 0 15%; padding: 0 2rem; border-left: 1px solid #eee; height: 100%; display: flex; flex-direction: column; justify-content: center; text-align: center;">
+                                    <small class="text-muted fw-bold d-block mb-1" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px;">UNIDADE</small>
+                                    <div style="font-size: 1.35rem; font-weight: 800; color: #1a1a1a; line-height: 1;">${unidade}</div>
+                                </div>
+
                             </div>
                         </div>
 
@@ -7573,7 +7580,7 @@
                             </div>
                         </div>
 
-                        <!-- Rodapé com Botões -->
+                        <!--Rodapé com Botões-- >
                         <div style="padding: 1rem 1.5rem; background-color: #f5f5f5; border-top: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center;">
                             <small class="text-muted">
                                 Gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}
@@ -7646,7 +7653,7 @@
                             html += `<div class="mb-3">
                                         <h5 class="fw-bold mb-1">${dadosPai.descricao}</h5>
                                         <div class="small text-muted">CÓDIGO: <strong>${dadosPai.codigo}</strong> | UNIDADE: <strong>${dadosPai.unidade}</strong></div>
-                                     </div><hr>`;
+                                     </div> <hr>`;
                         }
 
                         if (itens && itens.length > 0) {
@@ -7657,12 +7664,12 @@
                                             </thead>
                                             <tbody>`;
                             html += itens.map(i => `<tr>
-                                <td>${i.codigo_item}</td>
-                                <td class="text-uppercase">${i.descricao_item}</td>
-                                <td class="text-center">${parseFloat(i.coeficiente).toLocaleString('pt-BR')}</td>
-                                <td class="text-end">${parseFloat(i.preco_unitario).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                                <td class="text-end fw-bold">${parseFloat(i.valor_total).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                            </tr>`).join('');
+                            <td>${i.codigo_item}</td>
+                            <td class="text-uppercase">${i.descricao_item}</td>
+                            <td class="text-center">${parseFloat(i.coeficiente).toLocaleString('pt-BR')}</td>
+                            <td class="text-end">${parseFloat(i.preco_unitario).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                            <td class="text-end fw-bold">${parseFloat(i.valor_total).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        </tr>`).join('');
                             html += '</tbody></table></div>';
                         } else {
                             html += '<div class="alert alert-light border text-center py-4"><i class="bi bi-info-circle me-1"></i> Composição detalhada não disponível para esta versão no banco de dados.</div>';
@@ -7928,6 +7935,7 @@
                     if (rawGrupo === 'MAO_DE_OBRA' || rawGrupo === 'MAO DE OBRA') grupoDisplay = 'MÃO DE OBRA';
                     else if (rawGrupo === 'SERVICO' || rawGrupo === 'SERVICOS') grupoDisplay = 'SERVIÇO';
                     else if (rawGrupo === 'MATERIAL' || rawGrupo === 'MATERIAIS') grupoDisplay = 'MATERIAL';
+                    else if (rawGrupo === 'COMPOSICAO' || rawGrupo === 'COMPOSICOES') grupoDisplay = 'COMPOSIÇÃO';
 
                     // Fallbacks para Código e Descrição
                     const codigo = item.codigo_insumo || item.codigo_item || item.codigo || item.cod || '-';
