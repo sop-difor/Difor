@@ -7383,6 +7383,215 @@
                     }).join('');
                 }
 
+                function renderizarComposicaoSINAPI(dadosPai, modalBody) {
+                    // Validação de dados
+                    if (!dadosPai || !dadosPai.composicao || !Array.isArray(dadosPai.composicao) || dadosPai.composicao.length === 0) {
+                        modalBody.innerHTML = `
+                            <div class="alert alert-light border text-center py-5" style="margin: 2rem auto; max-width: 600px;">
+                                <i class="bi bi-info-circle me-2" style="font-size: 2rem; color: #6c757d;"></i>
+                                <div class="mt-3">
+                                    <h5 class="text-muted fw-bold">Composição Detalhada</h5>
+                                    <p class="text-muted mb-0">Não disponível para esta versão no banco de dados.</p>
+                                </div>
+                            </div>
+                        `;
+                        return;
+                    }
+
+                    // Funções de formatação
+                    const formatCurrency = (value) => {
+                        const num = parseFloat(value) || 0;
+                        return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                    };
+
+                    const formatDecimal = (value, places = 4) => {
+                        const num = parseFloat(value) || 0;
+                        return num.toLocaleString('pt-BR', { minimumFractionDigits: places, maximumFractionDigits: places });
+                    };
+
+                    // Converter data para formato MÊS/YY
+                    const formatarVersao = (dataStr) => {
+                        if (!dataStr) return '';
+                        const meses = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+                        const data = new Date(dataStr);
+                        const mes = meses[data.getMonth()];
+                        const ano = String(data.getFullYear()).slice(-2);
+                        return `${mes}/${ano}`;
+                    };
+
+                    // Extrai dados do pai
+                    const codigo = dadosPai.codigo || 'N/A';
+                    const descricao = (dadosPai.descricao || 'SEM DESCRIÇÃO').toUpperCase();
+                    const unidade = dadosPai.unidade || 'N/A';
+                    const composicao = dadosPai.composicao;
+                    const referencia = dadosPai.referencia || '';
+                    const versaoFormatada = formatarVersao(referencia);
+
+                    // Calcula totais
+                    let totalComposicao = 0;
+                    const linhasTabela = composicao.map(item => {
+                        const coef = parseFloat(item.coeficiente) || 0;
+                        const preco = parseFloat(item.preco_unitario) || 0;
+                        const total = coef * preco;
+                        totalComposicao += total;
+
+                        return {
+                            tipo: (item.tipo_item || 'INSUMO').toUpperCase(),
+                            codigo: item.codigo_item || '-',
+                            descricao: (item.descricao_item || '').toUpperCase(),
+                            unidade: item.unidade || '-',
+                            coeficiente: coef,
+                            preco_unitario: preco,
+                            total: total
+                        };
+                    });
+
+                    // Agrupa por tipo
+                    const grupos = {};
+                    linhasTabela.forEach(linha => {
+                        if (!grupos[linha.tipo]) grupos[linha.tipo] = [];
+                        grupos[linha.tipo].push(linha);
+                    });
+
+                    // Constrói HTML da tabela agrupada
+                    let tabelaHtml = `
+                        <table class="table table-sm align-middle" style="border-collapse: collapse;">
+                            <thead class="table-light">
+                                <tr style="font-size: 0.75rem; background-color: #f5f5f5; border-top: 2px solid #ddd; border-bottom: 2px solid #ddd;">
+                                    <th style="width: 8%; padding: 0.75rem 0.5rem;" class="fw-bold text-uppercase">FONTE</th>
+                                    <th style="width: 7%; padding: 0.75rem 0.5rem;" class="fw-bold text-uppercase">VERSÃO</th>
+                                    <th style="width: 8%; padding: 0.75rem 0.5rem;" class="fw-bold text-uppercase">CÓDIGO</th>
+                                    <th style="width: 48%; padding: 0.75rem 0.5rem;" class="fw-bold text-uppercase">DESCRIÇÃO DO INSUMO</th>
+                                    <th style="width: 5%; padding: 0.75rem 0.5rem;" class="fw-bold text-uppercase text-center">UNID.</th>
+                                    <th style="width: 7%; padding: 0.75rem 0.5rem;" class="fw-bold text-uppercase text-center">COEF.</th>
+                                    <th style="width: 10%; padding: 0.75rem 0.5rem;" class="fw-bold text-uppercase text-end">P. UNIT.</th>
+                                    <th style="width: 10%; padding: 0.75rem 0.5rem;" class="fw-bold text-uppercase text-end">TOTAL</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    `;
+
+                    Object.keys(grupos).sort().forEach(tipo => {
+                        // Converte COMPOSICAO para COMPOSIÇÃO
+                        const tipoFormatado = tipo === 'COMPOSICAO' ? 'COMPOSIÇÃO' : tipo;
+                        // Header do grupo com background cinza - CENTRALIZADO
+                        tabelaHtml += `
+                            <tr style="background-color: #e8e8e8; font-size: 0.8rem; font-weight: bold;">
+                                <td colspan="8" style="padding: 0.6rem 0.5rem; color: #333; text-align: center;">${tipoFormatado}</td>
+                            </tr>
+                        `;
+
+                        let subtotal = 0;
+
+                        // Linhas do grupo
+                        grupos[tipo].forEach(item => {
+                            subtotal += item.total;
+                            tabelaHtml += `
+                                <tr style="font-size: 0.8rem; border-bottom: 1px solid #eee;">
+                                    <td style="padding: 0.5rem 0.5rem;">SINAPI</td>
+                                    <td style="padding: 0.5rem 0.5rem;">${versaoFormatada}</td>
+                                    <td style="padding: 0.5rem 0.5rem; font-weight: bold;">${item.codigo}</td>
+                                    <td style="padding: 0.5rem 0.5rem; text-align: justify;">${item.descricao}</td>
+                                    <td style="padding: 0.5rem 0.5rem; text-align: center;">${item.unidade}</td>
+                                    <td style="padding: 0.5rem 0.5rem; text-align: center;">${formatDecimal(item.coeficiente, 3)}</td>
+                                    <td style="padding: 0.5rem 0.5rem; text-align: right;">${formatCurrency(item.preco_unitario)}</td>
+                                    <td style="padding: 0.5rem 0.5rem; text-align: right; font-weight: bold;">${formatCurrency(item.total)}</td>
+                                </tr>
+                            `;
+                        });
+
+                        // Subtotal do grupo
+                        tabelaHtml += `
+                            <tr style="font-size: 0.8rem; background-color: #f5f5f5; font-weight: bold; border-top: 1px solid #ddd;">
+                                <td colspan="7" style="padding: 0.6rem 0.5rem; text-align: right; color: #666;">TOTAL ${tipo}</td>
+                                <td style="padding: 0.6rem 0.5rem; text-align: right; color: #333;">${formatCurrency(subtotal)}</td>
+                            </tr>
+                        `;
+                    });
+
+                    tabelaHtml += `
+                            </tbody>
+                        </table>
+                    `;
+
+                    // Monta HTML final com design profissional
+                    const html = `
+                        <!-- Header com linha verde (inspirado SOP-CE) -->
+                        <div style="background-color: #fff; border-bottom: 3px solid #27a745; padding: 1.5rem;">
+                            <h5 class="mb-0 fw-bold text-dark" style="font-size: 1.2rem;">
+                                <i class="bi bi-file-earmark-text me-2" style="color: #27a745;"></i>COMPOSIÇÃO ANALÍTICA
+                            </h5>
+                            <small class="text-muted d-block mt-2">SINAPI - Sistema Nacional de Pesquisa de Custos e Índices da Construção Civil</small>
+                        </div>
+
+                        <!-- Metadados em card único com borda lateral verde, arredondado e efeito 3D -->
+                        <div style="padding: 1.5rem 1.5rem; background-color: #fafafa;">
+                            <div style="background: white; padding: 1.5rem 1.8rem; border-left: 5px solid #27a745; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.8); position: relative;">
+                                <div class="row g-3 align-items-center" style="min-height: 100px; display: flex; align-items: center;">
+                                    <!-- Código -->
+                                    <div class="col-md-2" style="border-right: 1px solid #e8e8e8; padding-right: 1.5rem;">
+                                        <small class="text-muted fw-bold d-block mb-2" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px;">Código</small>
+                                        <div class="fw-bold text-dark" style="font-size: 1.05rem;">${codigo}</div>
+                                    </div>
+
+                                    <!-- Descrição -->
+                                    <div class="col-md-7" style="padding: 0 1.5rem;">
+                                        <small class="text-muted fw-bold d-block mb-2" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px;">Descrição da Composição</small>
+                                        <div class="fw-bold text-dark" style="font-size: 0.95rem; line-height: 1.5; text-align: justify; color: #333;">
+                                            ${descricao}
+                                        </div>
+                                    </div>
+
+                                    <!-- Unidade -->
+                                    <div class="col-md-3" style="border-left: 1px solid #e8e8e8; padding-left: 1.5rem;">
+                                        <small class="text-muted fw-bold d-block mb-2" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px;">Unidade</small>
+                                        <div class="fw-bold text-dark" style="font-size: 1.05rem;">${unidade}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tabela de Itens -->
+                        <div style="padding: 1.5rem; background-color: white;">
+                            <div class="table-responsive">
+                                ${tabelaHtml}
+                            </div>
+                        </div>
+
+                        <!-- Total Geral em Destaque Verde -->
+                        <div style="padding: 2rem 1.5rem; background: linear-gradient(135deg, #27a745 0%, #1e8449 100%); color: white;">
+                            <div class="row align-items-center">
+                                <div class="col-md-8">
+                                    <small class="text-white-50 fw-bold d-block mb-1">PREÇO TOTAL</small>
+                                    <p class="mb-0" style="font-size: 0.9rem;">Composição Analítica SINAPI</p>
+                                </div>
+                                <div class="col-md-4 text-end">
+                                    <div style="font-size: 2rem; font-weight: bold; letter-spacing: 0.5px;">
+                                        ${formatCurrency(totalComposicao)}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Rodapé com Botões -->
+                        <div style="padding: 1rem 1.5rem; background-color: #f5f5f5; border-top: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center;">
+                            <small class="text-muted">
+                                Gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}
+                            </small>
+                            <div>
+                                <button class="btn btn-sm btn-outline-secondary me-2" onclick="window.print();" style="border-radius: 4px;">
+                                    <i class="bi bi-printer me-1"></i>Imprimir
+                                </button>
+                                <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal" style="border-radius: 4px;">
+                                    <i class="bi bi-x-lg me-1"></i>Fechar
+                                </button>
+                            </div>
+                        </div>
+                    `;
+
+                    modalBody.innerHTML = html;
+                }
+
                 async function abrirDetalheTabela(codigo, fonte, versao, tipoRef) {
                     const modalEl = document.getElementById('modalDetalheComposicao');
                     if (modalEl.parentElement !== document.body) document.body.appendChild(modalEl);
@@ -7398,7 +7607,39 @@
                             nomeTabela = 'sinapi_itens';
                             if (versao.length === 6) dataFormatada = `${versao.substring(2)}-${versao.substring(0, 2)}-01`;
                         }
-                        const { data: dadosPai } = await sbClient.from(nomeTabela).select('*').eq('codigo', codigo).eq('referencia', dataFormatada).eq('tipo_encargo', tipoRef).single();
+
+                        const { data: dadosPai, error } = await sbClient
+                            .from(nomeTabela)
+                            .select('*')
+                            .eq('codigo', codigo)
+                            .eq('referencia', dataFormatada)
+                            .eq('tipo_encargo', tipoRef)
+                            .single();
+
+                        if (error || !dadosPai) {
+                            modalBody.innerHTML = '<div class="alert alert-warning m-4 fw-bold text-center">Composição não encontrada no banco de dados.</div>';
+                            return;
+                        }
+
+                        // ===== DESVIO PARA RENDERIZADOR SINAPI =====
+                        if (fonte === 'SINAPI' && dadosPai.composicao && Array.isArray(dadosPai.composicao) && dadosPai.composicao.length > 0) {
+                            renderizarComposicaoSINAPI(dadosPai, modalBody);
+                            return;
+                        }
+
+                        // ===== LÓGICA ANTERIOR (FALLBACK PARA OUTRAS FONTES) =====
+                        let itens = (dadosPai && dadosPai.composicao) ? dadosPai.composicao : [];
+
+                        // Fallback: Se não houver dados no JSON, busca na tabela auxiliar 'tabelas_itens'
+                        if (itens.length === 0) {
+                            const { data: itensDB } = await sbClient
+                                .from('tabelas_itens')
+                                .select('*')
+                                .eq('fonte', fonte)
+                                .eq('versao', versao)
+                                .eq('referencia_pai_cod', codigo);
+                            itens = itensDB || [];
+                        }
 
                         let html = '';
                         if (dadosPai) {
@@ -7406,14 +7647,6 @@
                                         <h5 class="fw-bold mb-1">${dadosPai.descricao}</h5>
                                         <div class="small text-muted">CÓDIGO: <strong>${dadosPai.codigo}</strong> | UNIDADE: <strong>${dadosPai.unidade}</strong></div>
                                      </div><hr>`;
-                        }
-                        // 1. Tenta carregar a composição a partir da nova coluna JSON 'composicao' no registro pai
-                        let itens = (dadosPai && dadosPai.composicao) ? dadosPai.composicao : [];
-
-                        // 2. Fallback: Se não houver dados no JSON, busca na tabela auxiliar 'tabelas_itens' (método antigo)
-                        if (itens.length === 0) {
-                            const { data: itensDB } = await sbClient.from('tabelas_itens').select('*').eq('fonte', fonte).eq('versao', versao).eq('referencia_pai_cod', codigo);
-                            itens = itensDB || [];
                         }
 
                         if (itens && itens.length > 0) {
