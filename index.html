@@ -1851,11 +1851,11 @@
                     </div>
                     <div class="home-stat-card">
                         <div class="home-stat-info">
-                            <h4>Orçamentos Atualizados</h4>
-                            <div class="home-stat-value" id="stat-orc-total">0</div>
+                            <h4>Processos Em Análise</h4>
+                            <div class="home-stat-value" id="stat-proc-analise">0</div>
                         </div>
                         <div class="home-stat-icon bg-light-blue">
-                            <i class="bi bi-gear"></i>
+                            <i class="bi bi-search"></i>
                         </div>
                     </div>
                     <div class="home-stat-card">
@@ -4589,9 +4589,16 @@
                     const elAndamento = document.getElementById('stat-proc-andamento');
                     if (elAndamento) elAndamento.textContent = emAndamento;
 
-                    // Orçamentos Atualizados (Proxy: total de processos do fiscal ou total geral)
-                    const elOrcTotal = document.getElementById('stat-orc-total');
-                    if (elOrcTotal) elOrcTotal.textContent = rows.length;
+                    // Processos Em Análise (Apenas 'Em Análise' ou 'Em Reanálise')
+                    const emAnalise = rows.filter(d => {
+                        const s = (d.status || "").toUpperCase();
+                        const isAnalise = s.includes("EM ANÁLISE") || s.includes("EM ANALISE");
+                        const isReanalise = s.includes("EM REANÁLISE") || s.includes("EM REANALISE");
+                        const isAguardando = s.includes("AGUARD");
+                        return (isAnalise || isReanalise) && !isAguardando;
+                    }).length;
+                    const elAnalise = document.getElementById('stat-proc-analise');
+                    if (elAnalise) elAnalise.textContent = emAnalise;
 
                     // Aditivos Aprovados no Mês
                     const agora = new Date();
