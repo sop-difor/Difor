@@ -1822,7 +1822,7 @@
         </ul>
 
         <!-- BOTÃO VOLTAR (Clean & Professional) -->
-        <div id="nav-back-container" style="display: none; margin-bottom: 25px;">
+        <div id="nav-back-container" style="display: none; margin-bottom: 15px;">
             <button class="btn-back-minimal" onclick="showPane('pane-home')">
                 <i class="bi bi-arrow-left"></i>
                 <span>Painel Principal</span>
@@ -2622,7 +2622,7 @@
             <div class="tab-pane fade" id="pane-tabelas">
                 <div class="page-wrapper pt-0">
 
-                    <div class="mb-4 text-center">
+                    <div class="mb-3 text-center" style="margin-top: -15px;">
                         <h4 class="fw-bold" style="color: var(--sop-green-dark);">PESQUISA DE PREÇOS DE REFERÊNCIA</h4>
                         <p class="text-muted small">Consulte bases oficiais (SEINFRA, SINAPI, ORSE) atualizadas.</p>
                     </div>
@@ -5165,7 +5165,7 @@
                         { title: "Status", width: "146px", key: "status", align: "start" }, { title: "Analista", width: "100px", key: "analista", align: "center" }, { title: "Abertura", width: "100px", key: "abertura", align: "center" },
                         { title: "Dias", width: "100px", key: "dias", align: "center" }, { title: "Contratante", width: "100px", key: "contratante", align: "start" }, { title: "Contratada", width: "100px", key: "contratada", align: "start" }, { title: "Descrição", width: "auto", key: "descricao", align: "start" }
                     ];
-                    const thead = document.querySelector("#pane-reuniao table th");
+                    const thead = document.querySelector("#pane-reuniao table thead");
                     let headerHTML = "<tr>";
                     columns.forEach(col => {
                         if (col.key) { headerHTML += `<th style="width: ${col.width}; cursor: pointer; user-select: none;" onclick="changeSort('${col.key}')" class="text-${col.align}"><div class="d-flex align-items-center justify-content-${col.align === 'center' ? 'center' : 'start'}">${col.title} ${getSortIcon(col.key)}</div></th>`; }
