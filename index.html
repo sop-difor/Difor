@@ -1817,6 +1817,8 @@
                     data-bs-target="#pane-tabelas" data-bs-toggle="tab">Tabelas</button></li>
             <li class="nav-item" data-roles="admin"><button class="nav-link" data-bs-target="#pane-admin"
                     data-bs-toggle="tab">Administração</button></li>
+            <li class="nav-item" data-roles="admin,gerente,fiscal,externo,guest"><button class="nav-link"
+                    data-bs-target="#pane-atividades" data-bs-toggle="tab">Últimas Atividades</button></li>
         </ul>
 
         <!-- BOTÃO VOLTAR (Clean & Professional) -->
@@ -1869,28 +1871,40 @@
 
                 <!-- Hub de Navegação (Tiles) -->
                 <div class="home-quick-actions-grid">
-                    <div class="home-action-card" data-pane="pane-tabelas" onclick="showPane('pane-tabelas')">
-                        <div class="home-action-icon"><i class="bi bi-search"></i></div>
+                    <!-- 1. Administração -->
+                    <div class="home-action-card admin-only" data-pane="pane-admin" onclick="showPane('pane-admin')">
+                        <div class="home-action-icon" style="color: #666;"><i class="bi bi-shield-lock"></i></div>
                         <div class="home-action-text">
-                            <h3>Tabelas</h3>
-                            <p>Consultar Bases de Preços (SEINFRA/SINAPI)</p>
+                            <h3>Administração</h3>
+                            <p>Gerenciar Usuários e Permissões do Sistema</p>
                         </div>
                     </div>
-                    <div class="home-action-card" data-pane="pane-reuniao" onclick="showPane('pane-reuniao')">
-                        <div class="home-action-icon"><i class="bi bi-file-earmark-text"></i></div>
+                    <!-- 2. Composições -->
+                    <div class="home-action-card" data-pane="pane-composicoes" onclick="showPane('pane-composicoes')">
+                        <div class="home-action-icon"><i class="bi bi-journal-text"></i></div>
                         <div class="home-action-text">
-                            <h3>Processos</h3>
-                            <p>Gerenciar Aditivos e Acompanhamento</p>
+                            <h3>Composições</h3>
+                            <p>Consultar e Elaborar Composições</p>
                         </div>
                     </div>
+                    <!-- 3. Orçamentos -->
+                    <div class="home-action-card" data-pane="pane-orcamentos" onclick="showPane('pane-orcamentos')">
+                        <div class="home-action-icon"><i class="bi bi-folder-check"></i></div>
+                        <div class="home-action-text">
+                            <h3>Orçamentos</h3>
+                            <p>Orçamentos Revisados pela GEROA</p>
+                        </div>
+                    </div>
+                    <!-- 4. Painel Financeiro -->
                     <div class="home-action-card" data-pane="pane-financeiro" data-roles="admin,gerente,fiscal"
                         onclick="showPane('pane-financeiro')">
                         <div class="home-action-icon"><i class="bi bi-currency-dollar"></i></div>
                         <div class="home-action-text">
                             <h3>Painel Financeiro</h3>
-                            <p>Fluxo de Caixa e Valores de Aditivos</p>
+                            <p>Fluxo de Valores de Aditivos</p>
                         </div>
                     </div>
+                    <!-- 5. Painel Gerencial -->
                     <div class="home-action-card" data-pane="pane-gerencial" data-roles="admin,gerente"
                         onclick="showPane('pane-gerencial')">
                         <div class="home-action-icon"><i class="bi bi-pie-chart"></i></div>
@@ -1899,57 +1913,43 @@
                             <p>Indicadores de Desempenho e Estatísticas</p>
                         </div>
                     </div>
+                    <!-- 6. Prazos -->
                     <div class="home-action-card" data-pane="pane-prazos" data-roles="admin,gerente"
                         onclick="showPane('pane-prazos')">
                         <div class="home-action-icon"><i class="bi bi-clock-history"></i></div>
                         <div class="home-action-text">
                             <h3>Prazos</h3>
-                            <p>Controle de Produtividade e Compromissos</p>
+                            <p>Controle de Produtividade</p>
                         </div>
                     </div>
-                    <div class="home-action-card" data-pane="pane-orcamentos" onclick="showPane('pane-orcamentos')">
-                        <div class="home-action-icon"><i class="bi bi-folder-check"></i></div>
+                    <!-- 7. Processos -->
+                    <div class="home-action-card" data-pane="pane-reuniao" onclick="showPane('pane-reuniao')">
+                        <div class="home-action-icon"><i class="bi bi-file-earmark-text"></i></div>
                         <div class="home-action-text">
-                            <h3>Orçamentos</h3>
-                            <p>Histórico de Documentos Elaborados</p>
+                            <h3>Processos</h3>
+                            <p>Gerenciar Processos de Aditivos</p>
                         </div>
                     </div>
-                    <div class="home-action-card" data-pane="pane-composicoes" onclick="showPane('pane-composicoes')">
-                        <div class="home-action-icon"><i class="bi bi-journal-text"></i></div>
+                    <!-- 8. Tabelas -->
+                    <div class="home-action-card" data-pane="pane-tabelas" onclick="showPane('pane-tabelas')">
+                        <div class="home-action-icon"><i class="bi bi-search"></i></div>
                         <div class="home-action-text">
-                            <h3>Composições</h3>
-                            <p>Consultar Itens e Gerar Relatórios Analíticos</p>
-                        </div>
-                    </div>
-                    <div class="home-action-card admin-only" data-pane="pane-admin" onclick="showPane('pane-admin')">
-                        <div class="home-action-icon" style="color: #666;"><i class="bi bi-shield-lock"></i></div>
-                        <div class="home-action-text">
-                            <h3>Administração</h3>
-                            <p>Gerenciar Usuários e Permissões do Sistema</p>
+                            <h3>Tabelas</h3>
+                            <p>Consultar Bases de Preços (SEINFRA/SINAPI/ORSE)</p>
                         </div>
                     </div>
                 </div>
 
                 <!-- Latest Activities Panel -->
-                <div class="home-activities-panel">
-                    <h3><i class="bi bi-clock-history"></i>Últimas Atividades</h3>
+                <div class="home-activities-panel" style="cursor: pointer;" onclick="showPane('pane-atividades')">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h3 class="m-0"><i class="bi bi-clock-history"></i>Últimas Atividades</h3>
+                        <span class="text-primary small fw-bold">Ver Tudo <i class="bi bi-chevron-right"></i></span>
+                    </div>
                     <div class="activities-list-container" id="home-activities-list">
-                        <!-- Mock activities based on image -->
-                        <div class="activity-item">
-                            <span class="activity-time">10:30</span>
-                            <span class="activity-desc">Visualizou orçamento SEINFRA (Ref 28)</span>
-                        </div>
-                        <div class="activity-item">
-                            <span class="activity-time">09:45</span>
-                            <span class="activity-desc">Criou aditivo para Obra "Avenida Beira Mar"</span>
-                        </div>
-                        <div class="activity-item">
-                            <span class="activity-time">08:15</span>
-                            <span class="activity-desc">Atualizou Tabela 27 SEINFRA</span>
-                        </div>
-                        <div class="activity-item">
-                            <span class="activity-time">Ontem</span>
-                            <span class="activity-desc">Gerou relatório PDF de Composições Analíticas</span>
+                        <div class="text-center py-3 w-100 text-muted">
+                            <div class="spinner-border spinner-border-sm" role="status"></div>
+                            <span class="ms-2">Carregando atividades...</span>
                         </div>
                     </div>
                 </div>
@@ -2718,6 +2718,44 @@
                                 <tbody id="tabela-precos-body">
                                 </tbody>
                             </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PAINEL DE ÚLTIMAS ATIVIDADES -->
+            <div class="tab-pane fade" id="pane-atividades">
+                <div class="page-wrapper pt-0">
+                    <div class="budget-hero-card mb-4">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h2 class="budget-title-large"><i class="bi bi-clock-history me-2"></i>Histórico
+                                    de Atividades</h2>
+                                <p class="budget-subtitle-text">Registro de movimentações no sistema nas últimas
+                                    24 horas.</p>
+                            </div>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="carregarAtividades()">
+                                <i class="bi bi-arrow-clockwise me-1"></i> Atualizar
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="card border-0 shadow-sm overflow-hidden" style="border-radius: 16px;">
+                        <div
+                            class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                            <h6 class="fw-bold mb-0 text-dark">Linha do Tempo (Últimas 24h)</h6>
+                            <div class="d-flex gap-2">
+                                <span class="badge bg-light text-dark border fw-normal" id="count-atividades-24h">0
+                                    registros</span>
+                            </div>
+                        </div>
+                        <div class="card-body p-0">
+                            <div id="full-activities-list" class="list-group list-group-flush">
+                                <div class="text-center py-5 text-muted">
+                                    <div class="spinner-border text-success mb-3" role="status"></div>
+                                    <div class="fw-bold">Buscando atividades recentes...</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -3880,6 +3918,153 @@
                 }
 
                 // --- 3. CORE: CARREGAMENTO DE DADOS (READ) ---
+                /* --------------------------------------------------------------
+                   LÓGICA DE ÚLTIMAS ATIVIDADES (REGISTRO E LISTAGEM)
+                -------------------------------------------------------------- */
+
+                async function registrarAtividade(tipo, descricao, contexto = '', obra = '', fiscal = '') {
+                    try {
+                        const userName = localStorage.getItem('sop_user_name') || 'Sistema';
+                        const userRole = localStorage.getItem('sop_role') || 'guest';
+
+                        const payload = {
+                            usuario: userName,
+                            perfil: userRole,
+                            descricao,
+                            tipo,
+                            contexto,
+                            obra,
+                            fiscal: fiscal // Usado para filtrar para Fiscais
+                        };
+
+                        await sbClient.from('app_atividades').insert([payload]);
+                    } catch (err) {
+                        console.error("Erro ao registrar atividade:", err);
+                    }
+                }
+
+                async function carregarAtividades() {
+                    const listEl = document.getElementById('full-activities-list');
+                    const countEl = document.getElementById('count-atividades-24h');
+                    if (!listEl) return;
+
+                    const userRole = localStorage.getItem('sop_role') || 'guest';
+                    const userName = localStorage.getItem('sop_user_name') || '';
+
+                    // Filtro de 24h
+                    const ontem = new Date();
+                    ontem.setHours(ontem.getHours() - 24);
+
+                    try {
+                        let query = sbClient.from('app_atividades')
+                            .select('*')
+                            .gte('created_at', ontem.toISOString())
+                            .order('created_at', { ascending: false });
+
+                        // Se for fiscal, filtra apenas suas obras/processos
+                        if (userRole.toLowerCase() === 'fiscal' && userName) {
+                            // No caso de processos, filtramos pelo campo fiscal
+                            // No caso de outros (composição, orçamento), eles veem tudo? 
+                            // O usuário disse: "Na aba Processo... para os usuários fiscais essas informações só devem aparecer das suas respectivas obras, já os administradores e gerentes podem ver de todos os processos;"
+                            // "Na aba Orçamentos... as movimentações aparecem para todos."
+                            // "Na aba Composições... as movimentações aparecem para todos."
+                            // "Na aba Tabelas... as movimentações aparecem para todos."
+
+                            // Então o filtro é apenas para tipo PROCESSO.
+                            // Mas na query do Supabase é difícil fazer OR (tipo != PROCESSO OR fiscal == userName).
+                            // Vamos filtrar no JS para simplificar ou usar .or()
+                            query = query.or(`tipo.neq.PROCESSO,fiscal.eq.${userName}`);
+                        }
+
+                        const { data, error } = await query;
+                        if (error) throw error;
+
+                        countEl.textContent = `${data.length} registros`;
+
+                        if (data.length === 0) {
+                            listEl.innerHTML = '<div class="text-center py-5 text-muted">Nenhuma atividade registrada nas últimas 24h.</div>';
+                            return;
+                        }
+
+                        listEl.innerHTML = data.map(at => {
+                            const icon = getAtividadeIcon(at.tipo);
+                            const dataHora = new Date(at.created_at).toLocaleString('pt-BR');
+                            return `
+                                <div class="list-group-item p-3 border-0 border-bottom">
+                                    <div class="d-flex align-items-center gap-3">
+                                        <div class="home-action-icon" style="width: 40px; height: 40px; min-width: 40px; background: #f8f9fa;">
+                                            <i class="bi ${icon}"></i>
+                                        </div>
+                                        <div>
+                                            <div class="small text-muted mb-1">${dataHora} • ${at.tipo}</div>
+                                            <div class="fw-semibold" style="font-size: 0.95rem;">${at.usuario} ${at.descricao}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('');
+
+                    } catch (err) {
+                        console.error("Erro ao carregar atividades:", err);
+                        listEl.innerHTML = '<div class="alert alert-danger m-3">Erro ao carregar atividades.</div>';
+                    }
+                }
+
+                async function carregarAtividadesResumoHome() {
+                    const listEl = document.getElementById('home-activities-list');
+                    if (!listEl) return;
+
+                    const userRole = localStorage.getItem('sop_role') || 'guest';
+                    const userName = localStorage.getItem('sop_user_name') || '';
+
+                    try {
+                        let query = sbClient.from('app_atividades')
+                            .select('*')
+                            .limit(4)
+                            .order('created_at', { ascending: false });
+
+                        if (userRole.toLowerCase() === 'fiscal' && userName) {
+                            query = query.or(`tipo.neq.PROCESSO,fiscal.eq.${userName}`);
+                        }
+
+                        const { data, error } = await query;
+                        if (error) throw error;
+
+                        if (data.length === 0) {
+                            listEl.innerHTML = '<div class="text-center py-3 w-100 text-muted">Sem atividades recentes.</div>';
+                            return;
+                        }
+
+                        listEl.innerHTML = data.map(at => {
+                            const dt = new Date(at.created_at);
+                            const hora = dt.getHours().toString().padStart(2, '0') + ':' + dt.getMinutes().toString().padStart(2, '0');
+                            const dataHoje = new Date().toLocaleDateString();
+                            const timeLabel = (dt.toLocaleDateString() === dataHoje) ? hora : 'Ontem';
+
+                            return `
+                                <div class="activity-item">
+                                    <span class="activity-time">${timeLabel}</span>
+                                    <span class="activity-desc">${at.usuario} ${at.descricao}</span>
+                                </div>
+                            `;
+                        }).join('');
+
+                    } catch (err) {
+                        console.error("Erro no resumo de atividades:", err);
+                        listEl.innerHTML = '<div class="text-muted small">Erro ao carregar resumo.</div>';
+                    }
+                }
+
+                function getAtividadeIcon(tipo) {
+                    switch (tipo) {
+                        case 'PROCESSO': return 'bi-file-earmark-text text-primary';
+                        case 'ORCAMENTO': return 'bi-folder-check text-success';
+                        case 'COMPOSICAO': return 'bi-journal-text text-warning';
+                        case 'TABELA': return 'bi-search text-info';
+                        default: return 'bi-clock-history';
+                    }
+                }
+
                 async function carregarDadosSupabase() {
                     const loader = document.getElementById("load-error");
                     if (loader) loader.style.display = "none";
@@ -4066,6 +4251,11 @@
                     clearGerencial();
                     clearPrazos();
                     updateFinanceiro();
+
+                    // Atualiza resumo de atividades na Home
+                    if (typeof carregarAtividadesResumoHome === 'function') {
+                        carregarAtividadesResumoHome();
+                    }
                 }
 
                 // --- 4. CORE: SALVAR NOVO PROCESSO (CREATE) ---
@@ -4168,6 +4358,9 @@
                         msg.style.display = 'block';
                         msg.className = 'alert alert-success mt-3';
                         msg.innerHTML = '✅ Salvo com sucesso no Banco de Dados!';
+
+                        // Log de Atividade
+                        registrarAtividade('PROCESSO', `cadastrou o processo Nº ${numProcesso}`, numProcesso, formData.get("DESCRIÇÃO"), formData.get("FISCAL"));
 
                         setTimeout(() => {
                             const modal = bootstrap.Modal.getInstance(document.getElementById('modalCadastro'));
@@ -4342,6 +4535,11 @@
                                 msg.style.display = 'none';
                                 bootstrap.Modal.getInstance(document.getElementById('modalDetalhes')).hide();
                                 carregarDadosSupabase();
+
+                                // Log de Atividade (Apenas se status mudou, ou log geral)
+                                if (updates.status && updates.status !== registroOriginal.status) {
+                                    registrarAtividade('PROCESSO', `atualizou o status do processo Nº ${processoNome} para ${updates.status}`, processoNome, registroOriginal.descricao, registroOriginal.fiscal);
+                                }
                             }, 1000);
                         }
                     }
@@ -4367,6 +4565,9 @@
                     const userName = localStorage.getItem('sop_user_name') || 'Usuário';
                     const elName = document.getElementById('home-user-name');
                     if (elName) elName.textContent = userName;
+
+                    // 1b. Update Recent Activities Summary
+                    carregarAtividadesResumoHome();
 
                     // 2. Update Date
                     const elDate = document.getElementById('home-current-date');
@@ -4418,6 +4619,11 @@
                         backBtn.style.display = (paneId === 'pane-home') ? 'none' : 'block';
                     }
 
+                    // Se for Atividades, carrega ao abrir
+                    if (paneId === 'pane-atividades') {
+                        carregarAtividades();
+                    }
+
                     // Atualiza o título do subheader
                     const titles = {
                         'pane-home': 'Painel Gerencial – Aditivos de Obras',
@@ -4428,7 +4634,8 @@
                         'pane-orcamentos': 'Orçamentos',
                         'pane-composicoes': 'Composições',
                         'pane-tabelas': 'Tabelas',
-                        'pane-admin': 'Administração'
+                        'pane-admin': 'Administração',
+                        'pane-atividades': 'Atividades Recentes'
                     };
                     const titleEl = document.getElementById('main-subheader-title');
                     if (titleEl && titles[paneId]) {
@@ -4958,7 +5165,7 @@
                         { title: "Status", width: "146px", key: "status", align: "start" }, { title: "Analista", width: "100px", key: "analista", align: "center" }, { title: "Abertura", width: "100px", key: "abertura", align: "center" },
                         { title: "Dias", width: "100px", key: "dias", align: "center" }, { title: "Contratante", width: "100px", key: "contratante", align: "start" }, { title: "Contratada", width: "100px", key: "contratada", align: "start" }, { title: "Descrição", width: "auto", key: "descricao", align: "start" }
                     ];
-                    const thead = document.querySelector("#pane-reuniao table thead");
+                    const thead = document.querySelector("#pane-reuniao table th");
                     let headerHTML = "<tr>";
                     columns.forEach(col => {
                         if (col.key) { headerHTML += `<th style="width: ${col.width}; cursor: pointer; user-select: none;" onclick="changeSort('${col.key}')" class="text-${col.align}"><div class="d-flex align-items-center justify-content-${col.align === 'center' ? 'center' : 'start'}">${col.title} ${getSortIcon(col.key)}</div></th>`; }
@@ -5837,7 +6044,7 @@
 
                 /* --------------------------------------------------------------
                    MODAL: SELEÇÃO DE MÓDULOS (PÓS LOGIN)
-                ---------------------------------------------------------------- */
+                -------------------------------------------------------------- */
 
                 const modules = [
                     { id: '#pane-financeiro', name: 'Painel Financeiro' },
@@ -6001,6 +6208,9 @@
                         if (dbError) throw dbError;
 
                         alert("✅ Orçamento cadastrado com sucesso!");
+
+                        // Log de Atividade
+                        registrarAtividade('ORCAMENTO', `cadastrou o orçamento da obra ${obra}`, '', obra);
 
                         // Limpar e Fechar
                         form.reset();
@@ -6351,6 +6561,9 @@
                             await salvarComentarioNoBanco(id, 'Sistema (Versão)', `Gerada versão ${newVersionLabel}: ${descricao}`);
                         }
 
+                        // Log de Atividade
+                        registrarAtividade('ORCAMENTO', `atualizou a versão (${newVersionLabel}) do orçamento: ${currentData?.nome_obra || 'N/A'}`, '', currentData?.nome_obra);
+
                         alert(`Versão ${newVersionLabel} enviada! Status alterado para ATUALIZADO.`);
                         bootstrap.Modal.getInstance(document.getElementById('modalNovaVersao')).hide();
                         carregarOrcamentos();
@@ -6414,7 +6627,7 @@
                     }
 
                     // Buscar histórico atual
-                    const { data: curr } = await sbClient.from('orcamentos_biblioteca').select('comentarios_revisao').eq('id', id).single();
+                    const { data: curr } = await sbClient.from('orcamentos_biblioteca').select('comentarios_revisao, nome_obra').eq('id', id).single();
                     const novoArr = curr.comentarios_revisao || [];
 
                     novoArr.unshift({
@@ -6433,6 +6646,9 @@
 
                     if (updateError) throw updateError;
 
+                    // Log de Atividade
+                    registrarAtividade('ORCAMENTO', `adicionou um comentário no orçamento: ${curr?.nome_obra || 'N/A'}`, '', curr?.nome_obra);
+
                     alert("Solicitação enviada!");
                     bootstrap.Modal.getInstance(document.getElementById('modalComentarioOrcamento')).hide();
                     carregarOrcamentos();
@@ -6444,6 +6660,10 @@
                     const novoArr = curr.comentarios_revisao || [];
                     novoArr.unshift({ autor, mensagem, data: new Date().toISOString() });
                     await sbClient.from('orcamentos_biblioteca').update({ comentarios_revisao: novoArr }).eq('id', id);
+
+                    // Log de Atividade
+                    const { data: bData } = await sbClient.from('orcamentos_biblioteca').select('descricao').eq('id', id).single();
+                    registrarAtividade('ORCAMENTO', `registrou um comentário no orçamento: ${bData?.descricao || 'N/A'}`, '', bData?.descricao);
                 }
 
                 /* --- MOTORES GENÉRICOS (OTIMIZAÇÃO) --- */
@@ -6657,6 +6877,9 @@
                         const { error: dbError } = await sbClient.from('composicoes_biblioteca').insert([payload]);
                         if (dbError) throw dbError;
 
+                        // Log de Atividade
+                        registrarAtividade('COMPOSICAO', `cadastrou a composição: ${obra}`, '', obra);
+
                         alert("✅ Composição cadastrada com sucesso!");
                         form.reset();
                         bootstrap.Modal.getInstance(document.getElementById('modalCadastrarComposicao')).hide();
@@ -6727,6 +6950,10 @@
                         }
 
                         alert(`Versão ${newVersionLabel} de Composição enviada!`);
+
+                        // Log de Atividade
+                        registrarAtividade('COMPOSICAO', `atualizou a versão (${newVersionLabel}) da composição: ${currentData?.descricao || 'N/A'}`, '', currentData?.descricao);
+
                         bootstrap.Modal.getInstance(document.getElementById('modalNovaVersaoComposicao')).hide();
                         carregarComposicoes();
                     } catch (err) { alert("Erro: " + err.message); } finally { btn.disabled = false; btn.innerText = txtOrig; }
@@ -6802,6 +7029,10 @@
                         if (updateError) throw updateError;
 
                         alert("Solicitação enviada!");
+
+                        // Log de Atividade
+                        registrarAtividade('COMPOSICAO', `adicionou um comentário na composição: ${curr?.descricao || 'N/A'}`, '', curr?.descricao);
+
                         bootstrap.Modal.getInstance(document.getElementById('modalComentarioComposicao')).hide();
                         carregarComposicoes();
                     } catch (err) {
@@ -7786,25 +8017,18 @@
                         const formData = new FormData(form);
                         const nomeObra = (formData.get('descricao') || 'SEM DESCRIÇÃO').toUpperCase();
 
-                        // --- LÓGICA DE AUTO-CATEGORIZAÇÃO PARA USUÁRIO ---
                         let userEmail = localStorage.getItem('sop_user') || 'SISTEMA';
                         let userName = localStorage.getItem('sop_user_name');
 
-                        // Ajuste se o email for apenas a matricula (sem @)
                         if (userEmail !== 'SISTEMA' && !userEmail.includes('@')) {
-                            // Remove espaços da matrícula para gerar um email válido (evita erro de formato no DB)
-                            const matriculaLimpa = userEmail.replace(/\s+/g, '');
-                            userEmail = `${matriculaLimpa}@gecope.app`;
+                            userEmail = `${userEmail.replace(/\s+/g, '')}@gecope.app`;
                         }
 
-                        // Se o nome no storage for nulo ou parece uma matrícula (só números), tenta buscar no banco AGORA e AGUARDA
                         if (!userName || /^\d+$/.test(userName)) {
-                            console.log('[DEBUG] Nome ausente ou matricula detectada. Buscando dados completos...');
-                            // Tenta buscar pelo email exato ou pela matrícula (se o email foi construído)
                             const { data: userData } = await sbClient.from('app_users')
                                 .select('full_name, nome, sobrenome')
                                 .eq('email', userEmail)
-                                .maybeSingle(); // Usa maybeSingle para não lançar erro se não achar
+                                .maybeSingle();
 
                             if (userData) {
                                 if (userData.full_name && !/^\d+$/.test(userData.full_name)) {
@@ -7812,14 +8036,11 @@
                                 } else if (userData.nome) {
                                     userName = (userData.nome + (userData.sobrenome ? ' ' + userData.sobrenome : '')).toUpperCase();
                                 }
-
                                 if (userName) localStorage.setItem('sop_user_name', userName);
                             }
                         }
 
-                        // Fallback final: Deriva do email ou do login original
                         if ((!userName || /^\d+$/.test(userName)) && userEmail !== 'SISTEMA') {
-                            // Tenta usar o login original (que pode ser o nome "GECOPE DIFOR") ou parte do email
                             const loginOriginal = localStorage.getItem('sop_user');
                             if (loginOriginal && !loginOriginal.includes('@') && !/^\d+$/.test(loginOriginal)) {
                                 userName = loginOriginal.toUpperCase();
@@ -7829,15 +8050,11 @@
                             }
                         }
 
-                        // Se chegar aqui e ainda for só número, tenta prefixar algo para não ficar estranho
-                        if (/^\d+$/.test(userName)) {
-                            userName = "USUÁRIO " + userName;
-                        }
+                        if (/^\d+$/.test(userName)) userName = "USUÁRIO " + userName;
 
                         const categoriaFinal = (userName || 'OUTROS').toUpperCase();
                         const subcategoriaFinal = 'COMPOSIÇÕES PRÓPRIAS';
 
-                        // Salva no Banco - payload completo para suporte analítico
                         const payload = {
                             descricao: nomeObra,
                             usuario: categoriaFinal,
@@ -7848,7 +8065,7 @@
                             data_base: formData.get('data_base') || '',
                             bdi: formData.get('bdi') || '0,00',
                             desconto: formData.get('desconto') || '0,00',
-                            itens: currentCompositionItems, // JSONB com os itens
+                            itens: currentCompositionItems,
                             status: 'Em Revisão'
                         };
 
@@ -7856,7 +8073,6 @@
                         let res;
 
                         if (idEdicao) {
-                            // MODO EDIÇÃO: Busca histórico atual para anexar nova alteração
                             const { data: current } = await sbClient.from('composicoes_biblioteca').select('historico_versoes').eq('id', idEdicao).single();
                             const hist = current ? (current.historico_versoes || []) : [];
                             hist.push({
@@ -7866,10 +8082,8 @@
                                 autor: userName || userEmail
                             });
                             payload.historico_versoes = hist;
-
                             res = await sbClient.from('composicoes_biblioteca').update(payload).eq('id', idEdicao);
                         } else {
-                            // MODO CRIAÇÃO
                             payload.versao_atual = 'V1';
                             payload.historico_versoes = [{
                                 versao: 'V1',
@@ -7882,10 +8096,14 @@
 
                         if (res.error) throw new Error(res.error.message);
 
-                        alert("Composição salva com sucesso!");
-                        bootstrap.Modal.getInstance(document.getElementById('modalCriarComposicaoAnalitica')).hide();
+                        // Log de Atividade
+                        registrarAtividade('COMPOSICAO', `${idEdicao ? 'editou' : 'criou manualmente'} a composição analítica: ${nomeObra}`, '', nomeObra);
 
-                        // Atualiza a lista
+                        alert("✅ Composição salva com sucesso!");
+                        bootstrap.Modal.getInstance(document.getElementById('modalCriarComposicaoAnalitica')).hide();
+                        form.reset();
+                        currentCompositionItems = [];
+                        if (typeof renderItemsTable === 'function') renderItemsTable();
                         carregarComposicoes();
 
                     } catch (error) {
