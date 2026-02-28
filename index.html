@@ -62,6 +62,13 @@
             display: inline-block !important;
         }
 
+        /* Correção para cards flexíveis que são admin-only */
+        body.is-admin .home-action-card.admin-only,
+        body.role-admin .home-action-card.admin-only,
+        body.role-gerente .home-action-card.admin-only {
+            display: flex !important;
+        }
+
         /* Regra para esconder elementos do Fiscal */
         body.role-fiscal .hide-fiscal {
             display: none !important;
@@ -239,13 +246,306 @@
             --sop-green-light: #4CC17C;
             --sop-orange: #F28C00;
             --sop-blue: #018ABD;
-            --sop-gray-dark: #333333;
-            --sop-gray-mid: #777777;
-            --sop-gray-light: #F4F4F4;
+
+            /* SaaS Colors (Tailwind Slate/Gray scale) */
+            --sop-slate-900: #0f172a;
+            --sop-slate-800: #1e293b;
+            --sop-slate-700: #334155;
+            --sop-slate-600: #475569;
+            --sop-slate-500: #64748b;
+            --sop-slate-200: #e2e8f0;
+            --sop-slate-100: #f1f5f9;
+            --sop-slate-50: #f8fafc;
+
+            --sop-gray-dark: var(--sop-slate-900);
+            --sop-gray-mid: var(--sop-slate-500);
+            --sop-gray-light: var(--sop-slate-100);
             --sop-white: #FFFFFF;
-            --border-soft: #E2E6EA;
-            --radius-lg: 16px;
-            --radius-sm: 10px;
+
+            /* Design Tokens */
+            --border-soft: #f1f5f9;
+            --radius-xl: 20px;
+            --radius-2xl: 24px;
+
+            /* Elegant SaaS Shadows */
+            --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+
+            --sop-card-shadow: var(--shadow-sm);
+            --sop-transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* HOME DASHBOARD STYLES */
+        .home-welcome-section {
+            padding: 10px 0 5px;
+            margin-bottom: 15px;
+        }
+
+        .home-welcome-title {
+            font-size: 1.6rem;
+            /* Reduzido de 2.4rem para alinhar com o app */
+            font-weight: 700;
+            color: var(--sop-slate-900);
+            margin-bottom: 4px;
+            letter-spacing: -0.025em;
+        }
+
+        .home-welcome-subtitle {
+            font-size: 0.95rem;
+            /* Reduzido de 1.1rem */
+            color: var(--sop-slate-500);
+            font-weight: 400;
+        }
+
+        .home-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 35px;
+        }
+
+        .home-stat-card {
+            background: var(--sop-white);
+            border-radius: var(--radius-xl);
+            padding: 12px 18px;
+            /* Mais compacto */
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--sop-slate-200);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: var(--sop-transition);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .home-stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .home-stat-info h4 {
+            font-size: 0.75rem;
+            color: var(--sop-slate-500);
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            /* Menor */
+            margin-top: 0;
+            letter-spacing: 0.05em;
+        }
+
+        .home-stat-value {
+            font-size: 1.5rem;
+            /* Reduzido de 2rem */
+            font-weight: 700;
+            color: var(--sop-slate-900);
+        }
+
+        .home-stat-icon {
+            width: 44px;
+            /* Reduzido */
+            height: 44px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+        }
+
+        .bg-light-green {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .bg-light-blue {
+            background-color: #e3f2fd;
+            color: #1565c0;
+        }
+
+        .bg-light-orange {
+            background-color: #fff3e0;
+            color: #ef6c00;
+        }
+
+        .home-quick-actions-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            /* Mais compacto */
+            margin-bottom: 20px;
+        }
+
+        /* Responsividade para manter proporção */
+        @media (max-width: 1200px) {
+            .home-quick-actions-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .home-quick-actions-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .home-action-card {
+            background: var(--sop-white);
+            border-radius: var(--radius-xl);
+            padding: 18px 14px;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--sop-slate-100);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            gap: 10px;
+            cursor: pointer;
+            transition: var(--sop-transition);
+            text-decoration: none !important;
+            color: inherit !important;
+            min-height: 145px;
+            justify-content: center;
+        }
+
+        .home-action-card:hover {
+            transform: translateY(-6px);
+            box-shadow: var(--shadow-lg);
+            border-color: var(--sop-slate-200);
+        }
+
+        .home-action-icon {
+            width: 44px;
+            /* Aumentado de 38px */
+            height: 44px;
+            background: var(--sop-slate-50);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            /* Aumentado de 1.25rem */
+            color: var(--sop-green);
+            transition: var(--sop-transition);
+            border: 1px solid var(--sop-slate-100);
+        }
+
+        .home-action-card:hover .home-action-icon {
+            background: var(--sop-green);
+            color: var(--sop-white);
+        }
+
+        .home-action-text h3 {
+            font-size: 1.0rem;
+            /* Proporcional */
+            font-weight: 600;
+            margin-bottom: 4px;
+            color: var(--sop-slate-900);
+        }
+
+        .home-action-text p {
+            margin: 0;
+            color: var(--sop-slate-500);
+            font-size: 0.75rem;
+            /* Menor */
+            line-height: 1.2;
+        }
+
+        .btn-back-minimal {
+            background: none;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            color: #666;
+            font-size: 0.9rem;
+            font-weight: 500;
+            padding: 8px 12px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid rgba(0, 0, 0, 0.03);
+            background-color: rgba(0, 0, 0, 0.015);
+        }
+
+        .btn-back-minimal:hover {
+            color: var(--sop-green);
+            background-color: rgba(0, 143, 61, 0.05);
+            border-color: rgba(0, 143, 61, 0.1);
+            transform: translateX(-3px);
+        }
+
+        .btn-back-minimal i {
+            font-size: 1rem;
+        }
+
+        .home-activities-panel {
+            background: var(--sop-white);
+            border-radius: var(--radius-xl);
+            padding: 15px 20px;
+            /* Mais compacto */
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--sop-slate-200);
+            margin-bottom: 20px;
+        }
+
+        .home-activities-panel h3 {
+            font-size: 1.15rem;
+            font-weight: 700;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: var(--sop-gray-dark);
+        }
+
+        .activities-list-container {
+            display: flex;
+            gap: 40px;
+            overflow-x: auto;
+            padding-bottom: 15px;
+            scrollbar-width: thin;
+            scrollbar-color: #ddd transparent;
+        }
+
+        .activities-list-container::-webkit-scrollbar {
+            height: 6px;
+        }
+
+        .activities-list-container::-webkit-scrollbar-thumb {
+            background: #ddd;
+            border-radius: 3px;
+        }
+
+        .activity-item {
+            min-width: 280px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            position: relative;
+        }
+
+        .activity-item:not(:last-child)::after {
+            content: "";
+            position: absolute;
+            right: -20px;
+            height: 35px;
+            width: 1px;
+            background-color: #eee;
+        }
+
+        .activity-time {
+            font-weight: 800;
+            color: var(--sop-gray-dark);
+            font-size: 1rem;
+            white-space: nowrap;
+        }
+
+        .activity-desc {
+            font-size: 0.9rem;
+            color: #555;
+            line-height: 1.4;
         }
 
         * {
@@ -256,8 +556,8 @@
             margin: 0;
             padding: 0;
             font-family: "Montserrat", system-ui, -apple-system, sans-serif;
-            background-color: var(--sop-gray-light);
-            color: var(--sop-gray-dark);
+            background-color: var(--sop-slate-50);
+            color: var(--sop-slate-900);
         }
 
         /* ------------------------------------------------------------------------
@@ -1474,7 +1774,7 @@
 
     <section class="panel-subheader">
         <div>
-            <div class="panel-subheader-title">
+            <div class="panel-subheader-title" id="main-subheader-title">
                 Painel Gerencial – Aditivos de Obras
             </div>
             <div class="panel-subheader-subtitle">Painel para acompanhamento de aditivo de contratos.</div>
@@ -1497,34 +1797,163 @@
             </div>
         </div>
 
-        <ul class="nav nav-tabs mb-3" id="dashboardTabs" role="tablist"
-            style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 6px rgba(0,0,0,0.06);">
+        <!-- NAVEGAÇÃO REMOVIDA (Substituída por Tiles no Início) -->
+        <ul class="nav nav-tabs mb-3 d-none" id="dashboardTabs" role="tablist">
+            <li class="nav-item" data-roles="admin,gerente,fiscal,externo,guest"><button class="nav-link"
+                    data-bs-target="#pane-home" data-bs-toggle="tab">Início</button></li>
             <li class="nav-item" data-roles="admin,gerente,fiscal"><button class="nav-link"
-                    data-bs-target="#pane-financeiro" data-bs-toggle="tab">Painel Financeiro</button></li>
+                    data-bs-target="#pane-financeiro" data-bs-toggle="tab">Financeiro</button></li>
             <li class="nav-item" data-roles="admin,gerente"><button class="nav-link" data-bs-target="#pane-gerencial"
-                    data-bs-toggle="tab">Painel
-                    Gerencial</button></li>
+                    data-bs-toggle="tab">Gerencial</button></li>
             <li class="nav-item" data-roles="admin,gerente"><button class="nav-link" data-bs-target="#pane-prazos"
-                    data-bs-toggle="tab">Prazos e
-                    Produtividade</button></li>
-            <li class="nav-item" data-roles="admin,gerente,fiscal" id="tab-processos"><button class="nav-link"
+                    data-bs-toggle="tab">Prazos</button></li>
+            <li class="nav-item" data-roles="admin,gerente,fiscal"><button class="nav-link"
                     data-bs-target="#pane-reuniao" data-bs-toggle="tab">Processos</button></li>
             <li class="nav-item" data-roles="admin,gerente,fiscal,externo,guest"><button class="nav-link"
-                    data-bs-target="#pane-orcamentos" data-bs-toggle="tab"><i class="bi bi-folder2-open me-1"></i>
-                    Orçamentos</button></li>
+                    data-bs-target="#pane-orcamentos" data-bs-toggle="tab">Orçamentos</button></li>
             <li class="nav-item" data-roles="admin,gerente,fiscal,externo,guest"><button class="nav-link"
-                    data-bs-target="#pane-composicoes" data-bs-toggle="tab"><i class="bi bi-collection me-1"></i>
-                    Composições</button></li>
+                    data-bs-target="#pane-composicoes" data-bs-toggle="tab">Composições</button></li>
             <li class="nav-item" data-roles="admin,gerente,fiscal,externo,guest"><button class="nav-link"
-                    data-bs-target="#pane-tabelas" data-bs-toggle="tab"><i class="bi bi-calculator me-1"></i>
-                    Tabelas</button></li>
-            <li class="nav-item" data-roles="admin" style="display:none"><button class="nav-link"
-                    data-bs-target="#pane-admin" data-bs-toggle="tab" onclick="loadAllUsers()"><i
-                        class="bi bi-shield-lock me-1"></i>
-                    Administração</button></li>
+                    data-bs-target="#pane-tabelas" data-bs-toggle="tab">Tabelas</button></li>
+            <li class="nav-item" data-roles="admin"><button class="nav-link" data-bs-target="#pane-admin"
+                    data-bs-toggle="tab">Administração</button></li>
         </ul>
 
+        <!-- BOTÃO VOLTAR (Clean & Professional) -->
+        <div id="nav-back-container" style="display: none; margin-bottom: 25px;">
+            <button class="btn-back-minimal" onclick="showPane('pane-home')">
+                <i class="bi bi-arrow-left"></i>
+                <span>Painel Principal</span>
+            </button>
+        </div>
+
         <div class="tab-content">
+            <!-- PAINEL INICIAL (HOME) -->
+            <div class="tab-pane fade" id="pane-home">
+                <div class="home-welcome-section">
+                    <h1 class="home-welcome-title">Olá, <span id="home-user-name">usuário</span>.</h1>
+                    <div class="home-welcome-subtitle">Bem-vindo ao GECOPE. Hoje é <span
+                            id="home-current-date">Sexta-feira, 27 de Fevereiro de 2026</span>.</div>
+                </div>
+
+                <!-- Stats Cards Row -->
+                <div class="home-stats-grid">
+                    <div class="home-stat-card">
+                        <div class="home-stat-info">
+                            <h4>Processos em Andamento</h4>
+                            <div class="home-stat-value" id="stat-proc-andamento">0</div>
+                        </div>
+                        <div class="home-stat-icon bg-light-green">
+                            <i class="bi bi-graph-up-arrow"></i>
+                        </div>
+                    </div>
+                    <div class="home-stat-card">
+                        <div class="home-stat-info">
+                            <h4>Orçamentos Atualizados</h4>
+                            <div class="home-stat-value" id="stat-orc-total">0</div>
+                        </div>
+                        <div class="home-stat-icon bg-light-blue">
+                            <i class="bi bi-gear"></i>
+                        </div>
+                    </div>
+                    <div class="home-stat-card">
+                        <div class="home-stat-info">
+                            <h4>Aditivos Aprovados no Mês</h4>
+                            <div class="home-stat-value" id="stat-proc-aprovados">0</div>
+                        </div>
+                        <div class="home-stat-icon bg-light-orange">
+                            <i class="bi bi-check2-circle"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hub de Navegação (Tiles) -->
+                <div class="home-quick-actions-grid">
+                    <div class="home-action-card" data-pane="pane-tabelas" onclick="showPane('pane-tabelas')">
+                        <div class="home-action-icon"><i class="bi bi-search"></i></div>
+                        <div class="home-action-text">
+                            <h3>Tabelas</h3>
+                            <p>Consultar Bases de Preços (SEINFRA/SINAPI)</p>
+                        </div>
+                    </div>
+                    <div class="home-action-card" data-pane="pane-reuniao" onclick="showPane('pane-reuniao')">
+                        <div class="home-action-icon"><i class="bi bi-file-earmark-text"></i></div>
+                        <div class="home-action-text">
+                            <h3>Processos</h3>
+                            <p>Gerenciar Aditivos e Acompanhamento</p>
+                        </div>
+                    </div>
+                    <div class="home-action-card" data-pane="pane-financeiro" data-roles="admin,gerente,fiscal"
+                        onclick="showPane('pane-financeiro')">
+                        <div class="home-action-icon"><i class="bi bi-currency-dollar"></i></div>
+                        <div class="home-action-text">
+                            <h3>Painel Financeiro</h3>
+                            <p>Fluxo de Caixa e Valores de Aditivos</p>
+                        </div>
+                    </div>
+                    <div class="home-action-card" data-pane="pane-gerencial" data-roles="admin,gerente"
+                        onclick="showPane('pane-gerencial')">
+                        <div class="home-action-icon"><i class="bi bi-pie-chart"></i></div>
+                        <div class="home-action-text">
+                            <h3>Painel Gerencial</h3>
+                            <p>Indicadores de Desempenho e Estatísticas</p>
+                        </div>
+                    </div>
+                    <div class="home-action-card" data-pane="pane-prazos" data-roles="admin,gerente"
+                        onclick="showPane('pane-prazos')">
+                        <div class="home-action-icon"><i class="bi bi-clock-history"></i></div>
+                        <div class="home-action-text">
+                            <h3>Prazos</h3>
+                            <p>Controle de Produtividade e Compromissos</p>
+                        </div>
+                    </div>
+                    <div class="home-action-card" data-pane="pane-orcamentos" onclick="showPane('pane-orcamentos')">
+                        <div class="home-action-icon"><i class="bi bi-folder-check"></i></div>
+                        <div class="home-action-text">
+                            <h3>Orçamentos</h3>
+                            <p>Histórico de Documentos Elaborados</p>
+                        </div>
+                    </div>
+                    <div class="home-action-card" data-pane="pane-composicoes" onclick="showPane('pane-composicoes')">
+                        <div class="home-action-icon"><i class="bi bi-journal-text"></i></div>
+                        <div class="home-action-text">
+                            <h3>Composições</h3>
+                            <p>Consultar Itens e Gerar Relatórios Analíticos</p>
+                        </div>
+                    </div>
+                    <div class="home-action-card admin-only" data-pane="pane-admin" onclick="showPane('pane-admin')">
+                        <div class="home-action-icon" style="color: #666;"><i class="bi bi-shield-lock"></i></div>
+                        <div class="home-action-text">
+                            <h3>Administração</h3>
+                            <p>Gerenciar Usuários e Permissões do Sistema</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Latest Activities Panel -->
+                <div class="home-activities-panel">
+                    <h3><i class="bi bi-clock-history"></i>Últimas Atividades</h3>
+                    <div class="activities-list-container" id="home-activities-list">
+                        <!-- Mock activities based on image -->
+                        <div class="activity-item">
+                            <span class="activity-time">10:30</span>
+                            <span class="activity-desc">Visualizou orçamento SEINFRA (Ref 28)</span>
+                        </div>
+                        <div class="activity-item">
+                            <span class="activity-time">09:45</span>
+                            <span class="activity-desc">Criou aditivo para Obra "Avenida Beira Mar"</span>
+                        </div>
+                        <div class="activity-item">
+                            <span class="activity-time">08:15</span>
+                            <span class="activity-desc">Atualizou Tabela 27 SEINFRA</span>
+                        </div>
+                        <div class="activity-item">
+                            <span class="activity-time">Ontem</span>
+                            <span class="activity-desc">Gerou relatório PDF de Composições Analíticas</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <!-- PAINEL ADMINISTRAÇÃO -->
             <div class="tab-pane fade" id="pane-admin">
                 <div class="container-fluid py-4">
@@ -3930,7 +4359,101 @@
                     }
                 }
 
+                function updateHome() {
+                    const elHome = document.getElementById('pane-home');
+                    if (!elHome) return;
+
+                    // 1. Update Welcome Message
+                    const userName = localStorage.getItem('sop_user_name') || 'Usuário';
+                    const elName = document.getElementById('home-user-name');
+                    if (elName) elName.textContent = userName;
+
+                    // 2. Update Date
+                    const elDate = document.getElementById('home-current-date');
+                    if (elDate) {
+                        const agora = new Date();
+                        const diasSemana = ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"];
+                        const meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+                        elDate.textContent = `${diasSemana[agora.getDay()]}, ${agora.getDate()} de ${meses[agora.getMonth()]} de ${agora.getFullYear()}`;
+                    }
+
+                    // 3. Update Statistics
+                    const rows = allData || [];
+
+                    // Em Andamento (não aprovado, não cancelado, etc)
+                    const emAndamento = rows.filter(d => {
+                        const s = (d.status || "").toUpperCase();
+                        return !s.includes("APROVADO") && !s.includes("EXCLUÍDO") && !s.includes("EXCLUIDO") && !s.includes("CANCELADO") && !s.includes("ARQUIVADO");
+                    }).length;
+                    const elAndamento = document.getElementById('stat-proc-andamento');
+                    if (elAndamento) elAndamento.textContent = emAndamento;
+
+                    // Orçamentos Atualizados (Proxy: total de processos do fiscal ou total geral)
+                    const elOrcTotal = document.getElementById('stat-orc-total');
+                    if (elOrcTotal) elOrcTotal.textContent = rows.length;
+
+                    // Aditivos Aprovados no Mês
+                    const agora = new Date();
+                    const mesCorrente = agora.getMonth();
+                    const anoCorrente = agora.getFullYear();
+                    const aprovadosMes = rows.filter(d => {
+                        const s = (d.status || "").toUpperCase();
+                        const dt = d.dataAprovacao;
+                        return s.includes("APROVADO") && dt instanceof Date && dt.getMonth() === mesCorrente && dt.getFullYear() === anoCorrente;
+                    }).length;
+                    const elAprovMes = document.getElementById('stat-proc-aprovados');
+                    if (elAprovMes) elAprovMes.textContent = aprovadosMes;
+                }
+
+                function showPane(paneId) {
+                    const tabBtn = document.querySelector(`#dashboardTabs [data-bs-target="#${paneId}"]`);
+                    if (tabBtn) {
+                        tabBtn.click();
+                        // Scroll suave para o topo para dar feedback visual de mudança de tela
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
+
+                    const backBtn = document.getElementById('nav-back-container');
+                    if (backBtn) {
+                        backBtn.style.display = (paneId === 'pane-home') ? 'none' : 'block';
+                    }
+
+                    // Atualiza o título do subheader
+                    const titles = {
+                        'pane-home': 'Painel Gerencial – Aditivos de Obras',
+                        'pane-financeiro': 'Painel Financeiro',
+                        'pane-gerencial': 'Painel Gerencial - Estatísticas',
+                        'pane-prazos': 'Prazos e Produtividade',
+                        'pane-reuniao': 'Processos',
+                        'pane-orcamentos': 'Orçamentos',
+                        'pane-composicoes': 'Composições',
+                        'pane-tabelas': 'Tabelas',
+                        'pane-admin': 'Administração'
+                    };
+                    const titleEl = document.getElementById('main-subheader-title');
+                    if (titleEl && titles[paneId]) {
+                        titleEl.textContent = titles[paneId];
+                    }
+
+                    // Lógica específica para alguns painéis
+                    if (paneId === 'pane-admin') {
+                        if (typeof loadAllUsers === 'function') loadAllUsers();
+                    }
+                    if (paneId === 'pane-home') updateHome();
+
+                    // Se for painel gerencial ou financeiro, redimensionar gráficos
+                    setTimeout(() => {
+                        const activePane = document.getElementById(paneId);
+                        if (activePane) {
+                            activePane.querySelectorAll('.chart-placeholder').forEach(c => {
+                                if (window.Plotly) Plotly.Plots.resize(c);
+                            });
+                        }
+                    }, 300);
+                }
+
                 function updateDashboard() {
+                    if (typeof updateHome === 'function') updateHome();
                     if (typeof updateReuniao === 'function') updateReuniao();
                     if (typeof updateFinanceiro === 'function') updateFinanceiro();
                     if (typeof updateGerencial === 'function') updateGerencial();
@@ -4776,15 +5299,29 @@
                     document.body.classList.add(`role-${role}`);
                     if (role === 'admin') document.body.classList.add('is-admin');
 
-                    // Desativar todas as abas ao entrar/aplicar role (conforme solicitado pelo usuário)
+                    // 1. Reset tabs and panes
                     document.querySelectorAll('#dashboardTabs .nav-link').forEach(btn => btn.classList.remove('active'));
                     document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('show', 'active'));
 
-                    // 1. Visibilidade de Abas por Atributo data-roles
+                    // 2. Activate Home Tab by Default
+                    const homeTab = document.querySelector('[data-bs-target="#pane-home"]');
+                    const homePane = document.getElementById('pane-home');
+                    if (homeTab && homePane) {
+                        homeTab.classList.add('active');
+                        homePane.classList.add('show', 'active');
+                        updateHome();
+                    }
+
+                    // 1. Visibilidade de Abas e Tiles por Atributo data-roles
                     document.querySelectorAll('[data-roles]').forEach(el => {
                         const allowed = el.getAttribute('data-roles').split(',');
                         if (allowed.includes(role)) {
-                            el.style.setProperty('display', 'block', 'important');
+                            // Se for um card, usa flex, senão usa block (ou o default)
+                            if (el.classList.contains('home-action-card')) {
+                                el.style.setProperty('display', 'flex', 'important');
+                            } else {
+                                el.style.setProperty('display', 'block', 'important');
+                            }
                         } else {
                             el.style.setProperty('display', 'none', 'important');
                         }
@@ -4794,7 +5331,7 @@
                     const activeTab = document.querySelector('.nav-link.active');
                     if (activeTab && activeTab.closest('li').style.display === 'none') {
                         const firstVisible = document.querySelector('#dashboardTabs li[style*="display: block"] .nav-link');
-                        if (firstVisible) firstVisible.click();
+                        if (firstVisible) showPane(firstVisible.getAttribute('data-bs-target').replace('#', ''));
                     }
 
                     // Se for Pending, bloqueia acesso e volta para landing
