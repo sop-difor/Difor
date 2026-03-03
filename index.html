@@ -8243,11 +8243,13 @@
                         const stylePreco = (bdiVal > 0 || descVal > 0) ? 'color: #d63384 !important;' : 'color: var(--sop-gray-dark);';
 
                         let btnAction = '';
+                        const btnImprimir = `<button class="btn btn-sm btn-outline-success border me-1" onclick="imprimirLinhaTabela('${item.codigo}', '${fonte}', '${versaoBase}', '${tipoRef}')" title="Imprimir Composição"><i class="bi bi-printer"></i></button>`;
+
                         if (fonte === 'ORSE') {
                             const link = gerarLinkOrse(item.codigo, item.referencia);
-                            btnAction = `<a href="${link}" target="_blank" class="btn btn-sm btn-outline-primary" title="Ver Composição no ORSE"><i class="bi bi-box-arrow-up-right"></i></a>`;
+                            btnAction = `<div class="d-flex align-items-center justify-content-end">${btnImprimir}<a href="${link}" target="_blank" class="btn btn-sm btn-outline-primary" title="Ver Composição no ORSE"><i class="bi bi-box-arrow-up-right"></i></a></div>`;
                         } else {
-                            btnAction = `<button class="btn btn-sm btn-light border" onclick="abrirDetalheTabela('${item.codigo}', '${fonte}', '${versaoBase}', '${tipoRef}')" title="Ver Detalhes"><i class="bi bi-chevron-right"></i></button>`;
+                            btnAction = `<div class="d-flex align-items-center justify-content-end">${btnImprimir}<button class="btn btn-sm btn-light border" onclick="abrirDetalheTabela('${item.codigo}', '${fonte}', '${versaoBase}', '${tipoRef}')" title="Ver Detalhes"><i class="bi bi-chevron-right"></i></button></div>`;
                         }
 
                         return `<tr>
@@ -8622,6 +8624,8 @@
 
                         const { data: dadosPai, error } = await query.eq('codigo', codigo).single();
 
+                        if (dadosPai) currentCompositionData = dadosPai;
+
                         if (error || !dadosPai) {
                             modalBody.innerHTML = '<div class="alert alert-warning m-4 fw-bold text-center">Composição não encontrada no banco de dados.</div>';
                             return;
@@ -8725,6 +8729,59 @@
                         `;
                     } catch (e) {
                         modalBody.innerHTML = `<div class="alert alert-danger">Erro ao carregar: ${e.message}</div>`;
+                    }
+                }
+
+                // Nova função para imprimir diretamente da lista de tabelas
+                async function imprimirLinhaTabela(codigo, fonte, versao, tipoRef) {
+                    try {
+                        let nomeTabela = 'seinfra_itens';
+                        let dataFormatada = versao;
+                        if (fonte === 'SINAPI') {
+                            nomeTabela = 'sinapi_itens';
+                            if (versao.length === 6) dataFormatada = `${versao.substring(2)}-${versao.substring(0, 2)}-01`;
+                        }
+
+                        let query = sbClient.from(nomeTabela).select('*, composicao');
+                        if (fonte === 'SEINFRA') {
+                            query = query.eq('referencia', dataFormatada);
+                            if (tipoRef === 'onerada') {
+                                query = query.or('tipo_encargo.ilike.onerada,tipo_encargo.ilike.%não desonerada%');
+                            } else {
+                                query = query.ilike('tipo_encargo', 'desonerada');
+                            }
+                        } else {
+                            query = query.eq('referencia', dataFormatada).eq('tipo_encargo', tipoRef);
+                        }
+
+                        const { data: dadosPai, error } = await query.eq('codigo', codigo).single();
+                        if (error || !dadosPai) {
+                            alert("Dados não encontrados para impressão.");
+                            return;
+                        }
+
+                        currentCompositionData = dadosPai;
+                        const tempDiv = document.createElement('div');
+
+                        if (fonte === 'SINAPI' && dadosPai.composicao && Array.isArray(dadosPai.composicao)) {
+                            renderizarComposicaoSINAPI(dadosPai, tempDiv);
+                        } else if (fonte === 'SEINFRA') {
+                            renderizarComposicaoSEINFRA(dadosPai, tempDiv, tipoRef);
+                        } else {
+                            tempDiv.innerHTML = `
+                                <div class="p-4 report-print-area" style="font-family: 'Montserrat', sans-serif;">
+                                    <h4 class="fw-bold">${dadosPai.codigo} - ${dadosPai.descricao}</h4>
+                                    <p class="text-muted">Unidade: ${dadosPai.unidade}</p>
+                                    <p class="fw-bold">Valor Unitário: ${parseFloat(dadosPai.preco_unitario || dadosPai.valor_unitario || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+                                </div>
+                            `;
+                        }
+
+                        imprimirRelatorioSOP(dadosPai, tempDiv.innerHTML);
+
+                    } catch (e) {
+                        console.error(e);
+                        alert("Erro ao preparar impressão: " + e.message);
                     }
                 }
 
@@ -9008,18 +9065,20 @@
                 // --------------------------------------------------------------
                 // NOVA FUNÇÃO DE IMPRESSÃO HTML (Substitui o PDF direto)
                 // --------------------------------------------------------------
-                function imprimirRelatorioSOP(dados) {
+                function imprimirRelatorioSOP(dados, htmlOpcional = null) {
                     if (!dados) return;
 
-                    let htmlParaImprimir = "";
+                    let htmlParaImprimir = htmlOpcional || "";
                     const modalBody = document.getElementById('modal-report-body');
 
-                    if (modalBody && modalBody.querySelector('.report-print-area') && typeof currentCompositionData !== 'undefined' && currentCompositionData && (currentCompositionData.id === dados.id || currentCompositionData.codigo === dados.codigo)) {
-                        htmlParaImprimir = modalBody.innerHTML;
-                    } else {
-                        const tempDiv = document.createElement('div');
-                        renderizarRelatorioSOP_HTML(dados, tempDiv);
-                        htmlParaImprimir = tempDiv.innerHTML;
+                    if (!htmlParaImprimir) {
+                        if (modalBody && modalBody.querySelector('.report-print-area') && typeof currentCompositionData !== 'undefined' && currentCompositionData && (currentCompositionData.id === dados.id || currentCompositionData.codigo === dados.codigo)) {
+                            htmlParaImprimir = modalBody.innerHTML;
+                        } else {
+                            const tempDiv = document.createElement('div');
+                            renderizarRelatorioSOP_HTML(dados, tempDiv);
+                            htmlParaImprimir = tempDiv.innerHTML;
+                        }
                     }
 
                     const printWindow = window.open('', '_blank');
