@@ -7796,7 +7796,13 @@
                 // 2.3 ADICIONAR E GERENCIAR ITENS
                 function adicionarItemComposicao(item) {
                     // Verifica duplicação
-                    const existe = currentCompositionItems.find(i => i.codigo === item.codigo && i.fonte === item.fonte);
+                    const existe = currentCompositionItems.find(i => {
+                        // Se for cotação de mercado, permite múltiplos itens se as descrições forem diferentes
+                        if (item.fonte === 'MERCADO') {
+                            return i.fonte === item.fonte && i.descricao === item.descricao;
+                        }
+                        return i.codigo === item.codigo && i.fonte === item.fonte;
+                    });
                     if (existe) {
                         alert("Este item já está na lista.");
                         return;
@@ -8153,7 +8159,7 @@
                     tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-success"></div><div class="mt-2 text-muted small">Buscando na base de dados...</div></td></tr>';
 
                     try {
-                        let query = sbClient.from(nomeTabela).select('*, composicao');
+                        let query = sbClient.from(nomeTabela).select('*');
                         if (fonte === 'SEINFRA') query = query.eq('referencia', versaoBase);
                         else query = query.eq('referencia', dataFormatada);
 
@@ -8166,9 +8172,10 @@
                             } else {
                                 query = query.ilike('tipo_encargo', 'desonerada');
                             }
-                        } else {
+                        } else if (fonte === 'SINAPI') {
                             query = query.eq('tipo_encargo', tipoRef);
                         }
+                        // Para ORSE, ignoramos o filtro de tipo_encargo pois a tabela não possui essa coluna
 
                         // Busca por Código OU Descrição e limite estendido conforme solicitado (1000 itens)
                         query = query.or(`codigo.ilike.%${termo}%,descricao.ilike.%${termo}%`)
@@ -8610,7 +8617,7 @@
                             if (versao.length === 6) dataFormatada = `${versao.substring(2)}-${versao.substring(0, 2)}-01`;
                         }
 
-                        let query = sbClient.from(nomeTabela).select('*, composicao');
+                        let query = sbClient.from(nomeTabela).select('*');
 
                         if (fonte === 'SEINFRA') {
                             query = query.eq('referencia', dataFormatada);
@@ -8743,7 +8750,7 @@
                             if (versao.length === 6) dataFormatada = `${versao.substring(2)}-${versao.substring(0, 2)}-01`;
                         }
 
-                        let query = sbClient.from(nomeTabela).select('*, composicao');
+                        let query = sbClient.from(nomeTabela).select('*');
                         if (fonte === 'SEINFRA') {
                             query = query.eq('referencia', dataFormatada);
                             if (tipoRef === 'onerada') {
@@ -9523,15 +9530,15 @@
                             <div class="print-page-break p-4">
                                 <h6 class="fw-bold text-success mb-3" style="font-size: 0.9rem;">Metodologia de Cálculo de Insumo Não Tabelado (Cotação de Mercado)</h6>
                                 <p class="text-muted" style="font-size: 0.75rem; text-align: justify; line-height: 1.4;">
-                                    O presente custo unitário foi obtido através de cotação de mercado, visto que o insumo não consta nas tabelas de referência oficiais (SINAPI/SICRO/ORSE). Para garantir a integridade e a homogeneidade financeira do orçamento, foi realizado o processo de retroação (deflacionamento) do valor cotado.
+                                    O(s) presente(s) custo(s) unitário(s) foi(ram) obtido(s) através de cotação de mercado, visto que o(s) insumo(s) não consta(m) nas tabelas de referência oficiais (SINAPI/SICRO/ORSE). Para garantir a integridade e a homogeneidade financeira do orçamento, foi realizado o processo de retroação (deflacionamento) do(s) valor(es) cotado(s).
                                 </p>
                                 <p class="text-muted" style="font-size: 0.75rem; text-align: justify; line-height: 1.4;">
-                                    O objetivo é compatibilizar o preço de mercado atual (data da cotação) com a Data-Base da Licitação/Orçamento, expurgando a inflação acumulada no período. Desta forma, todos os custos do orçamento permanecem referenciados no mesmo marco temporal, permitindo a correta aplicação de reajustes contratuais futuros.
+                                    O objetivo é compatibilizar o(s) preço(s) de mercado atual(is) com a Data-Base da Licitação/Orçamento, expurgando a inflação acumulada no período. Desta forma, todos os custos do orçamento permanecem referenciados no mesmo marco temporal, permitindo a correta aplicação de reajustes contratuais futuros.
                                 </p>
 
                                 <h6 class="fw-bold mt-4 mb-2" style="font-size: 0.85rem;">Memória de Cálculo e Compatibilização de Preços</h6>
                                 <p class="text-muted mb-4" style="font-size: 0.75rem; text-align: justify;">
-                                    Considerando a defasagem temporal entre a data desta cotação de mercado e a data-base original deste orçamento, aplicou-se a retroação financeira dos valores. O cálculo consiste na divisão do valor cotado pelo índice inflacionário acumulado no período (ou pela razão entre os índices das datas final e inicial), utilizando o indexador informado na tabela abaixo:
+                                    Considerando a defasagem temporal entre a data da(s) cotação(ões) de mercado e a data-base original deste orçamento, aplicou-se a retroação financeira dos valores. O cálculo consiste na divisão do valor cotado pelo índice inflacionário acumulado no período (ou pela razão entre os índices das datas final e inicial), utilizando o indexador informado na(s) tabela(s) a seguir:
                                 </p>
                                 ${retroativos.map(r => {
                             const ret = r.retroativo;
