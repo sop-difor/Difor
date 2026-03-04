@@ -3488,19 +3488,29 @@
                                                             class="col-md-12 mb-1 d-flex justify-content-between align-items-center">
                                                             <span class="badge bg-secondary">Cálculo Retroativo
                                                                 (Opcional)</span>
-                                                            <a href="https://sindusconce.com.br/indices-economicos/"
-                                                                target="_blank"
-                                                                class="btn btn-sm btn-outline-primary py-0"
-                                                                style="font-size: 0.8rem;">
-                                                                <i class="bi bi-box-arrow-up-right me-1"></i> Pesquisar
-                                                                Índices
-                                                            </a>
+                                                            <div>
+                                                                <button type="button"
+                                                                    class="btn btn-sm btn-success py-0 me-1"
+                                                                    style="font-size: 0.8rem;" id="btn-buscar-incc"
+                                                                    onclick="buscarIndicesAutomatico()">
+                                                                    <i class="bi bi-cloud-download me-1"></i> Buscar
+                                                                    INCC-DI
+                                                                </button>
+                                                                <a href="https://sindusconce.com.br/indices-economicos/"
+                                                                    target="_blank"
+                                                                    class="btn btn-sm btn-outline-primary py-0"
+                                                                    style="font-size: 0.8rem;"
+                                                                    title="Consultar Manualmente">
+                                                                    <i class="bi bi-box-arrow-up-right"></i> Manual
+                                                                </a>
+                                                            </div>
                                                         </div>
                                                         <div class="col-md-2">
                                                             <label class="form-label small fw-bold mb-0">Data
                                                                 Cotação</label>
                                                             <input type="text" class="form-control form-control-sm"
-                                                                id="mercado-data-ini" placeholder="MM/AAAA">
+                                                                id="mercado-data-ini" placeholder="MM/AAAA"
+                                                                maxlength="7" oninput="formatMonthYearInput(this)">
                                                         </div>
                                                         <div class="col-md-2">
                                                             <label class="form-label small fw-bold mb-0">Ind.
@@ -3513,7 +3523,8 @@
                                                             <label class="form-label small fw-bold mb-0">Data-Base
                                                                 Orç.</label>
                                                             <input type="text" class="form-control form-control-sm"
-                                                                id="mercado-data-fin" placeholder="MM/AAAA">
+                                                                id="mercado-data-fin" placeholder="MM/AAAA"
+                                                                maxlength="7" oninput="formatMonthYearInput(this)">
                                                         </div>
                                                         <div class="col-md-2">
                                                             <label class="form-label small fw-bold mb-0">Ind.
@@ -10601,6 +10612,91 @@
                 </div>
             </div>
 
+            <script>
+                function formatMonthYearInput(input) {
+                    let v = input.value.replace(/\D/g, ''); // Remove tudo que não for número
+                    if (v.length > 6) v = v.slice(0, 6); // Limite de 6 dígitos no máximo (MMYYYY)
+                    if (v.length >= 3) {
+                        input.value = v.slice(0, 2) + '/' + v.slice(2);
+                    } else {
+                        input.value = v;
+                    }
+                }
+
+                async function buscarIndicesAutomatico() {
+                    const dataIni = document.getElementById('mercado-data-ini').value.trim();
+                    const dataFin = document.getElementById('mercado-data-fin').value.trim();
+
+                    if (!dataIni || !dataFin) {
+                        alert("Por favor, preencha as datas 'Data Cotação' e 'Data-Base Orç.' (formato MM/AAAA) antes de buscar os índices.");
+                        return;
+                    }
+
+                    const parseMesAnoStr = (str) => {
+                        const parts = str.split('/');
+                        // Lida com DD/MM/AAAA ou MM/AAAA
+                        if (parts.length === 3) {
+                            return { mes: parseInt(parts[1], 10), ano: parseInt(parts[2], 10) };
+                        } else if (parts.length === 2) {
+                            return { mes: parseInt(parts[0], 10), ano: parseInt(parts[1], 10) };
+                        }
+                        return null;
+                    };
+
+                    const dIni = parseMesAnoStr(dataIni);
+                    const dFin = parseMesAnoStr(dataFin);
+
+                    if (!dIni || !dFin || isNaN(dIni.mes) || isNaN(dIni.ano)) {
+                        alert("Formato de data inválido. Utilize o formato MM/AAAA.");
+                        return;
+                    }
+
+                    const btn = document.getElementById('btn-buscar-incc');
+                    const oldHtml = btn.innerHTML;
+                    btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Buscando...';
+                    btn.disabled = true;
+
+                    try {
+                        const fetchIndexFromEdge = async (mes, ano) => {
+                            const reqBody = { mes, ano };
+                            // Utilizando a sbClient globalmente instanciada na aplicação
+                            const { data, error } = await sbClient.functions.invoke('get-economic-indices', {
+                                body: reqBody
+                            });
+                            if (error) throw error;
+                            if (data.status === 'error') throw new Error(data.message);
+                            return data.valor_indice;
+                        };
+
+                        const [indiceIni, indiceFin] = await Promise.all([
+                            fetchIndexFromEdge(dIni.mes, dIni.ano),
+                            fetchIndexFromEdge(dFin.mes, dFin.ano)
+                        ]);
+
+                        document.getElementById('mercado-ind-ini').value = parseFloat(indiceIni).toFixed(4).replace('.', ',');
+                        document.getElementById('mercado-ind-fin').value = parseFloat(indiceFin).toFixed(4).replace('.', ',');
+
+                        // Dispara re-cálculos visuais nativos já existentes, se houver
+                        if (typeof window.formatIndexInput === 'function') {
+                            window.formatIndexInput(document.getElementById('mercado-ind-ini'));
+                            window.formatIndexInput(document.getElementById('mercado-ind-fin'));
+                        }
+
+                        if (typeof window.calcularPrecoAdotado === 'function') {
+                            window.calcularPrecoAdotado();
+                        }
+
+                        alert("Índices INCC-DI (FGV/Ipeadata) obtidos e aplicados com sucesso!");
+
+                    } catch (err) {
+                        console.error("[Erro ao automatizar INCC]", err);
+                        alert("Não foi possível automatizar. Motivo: " + (err.message || 'Erro de conexão/API.'));
+                    } finally {
+                        btn.innerHTML = oldHtml;
+                        btn.disabled = false;
+                    }
+                }
+            </script>
 </body>
 
 </html>
