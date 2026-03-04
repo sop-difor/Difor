@@ -5168,7 +5168,7 @@
                     document.getElementById("card_proc_dias").textContent = maxDias;
 
                     const columns = [
-                        { title: "Ações", width: "50px", key: null, align: "center" }, { title: "Prioritário", width: "80px", key: null, align: "center" }, { title: "Processo", width: "200px", key: "processo", align: "start" }, { title: "Meta", width: "100px", key: "meta", align: "start" },
+                        { title: "Ações", width: "50px", key: null, align: "center" }, { title: "Prioritário", width: "80px", key: "prioritario", align: "center" }, { title: "Processo", width: "200px", key: "processo", align: "start" }, { title: "Meta", width: "100px", key: "meta", align: "start" },
                         { title: "Status", width: "146px", key: "status", align: "start" }, { title: "Analista", width: "100px", key: "analista", align: "center" }, { title: "Abertura", width: "100px", key: "abertura", align: "center" },
                         { title: "Dias", width: "100px", key: "dias", align: "center" }, { title: "Contratante", width: "100px", key: "contratante", align: "start" }, { title: "Contratada", width: "100px", key: "contratada", align: "start" }, { title: "Descrição", width: "auto", key: "descricao", align: "start" }
                     ];
@@ -5191,6 +5191,7 @@
                         }
                         let valA, valB;
                         switch (currentSort.col) {
+                            case 'prioritario': valA = isPrioritario(a) ? 1 : 0; valB = isPrioritario(b) ? 1 : 0; break;
                             case 'processo': valA = a.processo || ""; valB = b.processo || ""; break;
                             case 'meta': const mA = getMetaDate(a); const mB = getMetaDate(b); valA = mA ? mA.getTime() : 0; valB = mB ? mB.getTime() : 0; break;
                             case 'status': valA = (a.status || "").toLowerCase(); valB = (b.status || "").toLowerCase(); break;
