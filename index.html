@@ -3442,7 +3442,43 @@
                                                 <input type="number" class="form-control form-control-sm"
                                                     id="mercado-coef" value="1.00" min="0" step="0.0001">
                                             </div>
-                                            <div class="col-md-5">
+                                            <div class="col-md-12 mt-2">
+                                                <div class="card border-0 bg-white shadow-sm">
+                                                    <div
+                                                        class="card-header bg-light py-1 d-flex justify-content-between align-items-center">
+                                                        <span class="small fw-bold text-secondary"><i
+                                                                class="bi bi-shop me-1"></i> Fornecedores (Cotações
+                                                            Coletadas)</span>
+                                                        <button type="button" class="btn btn-xs btn-primary py-0"
+                                                            onclick="adicionarLinhaFornecedor()"
+                                                            style="font-size: 0.7rem;">
+                                                            <i class="bi bi-plus-lg"></i> Adicionar Fornecedor
+                                                        </button>
+                                                    </div>
+                                                    <div class="card-body p-2">
+                                                        <div id="container-fornecedores" class="mb-2">
+                                                            <!-- Linhas de fornecedores adicionadas dinamicamente -->
+                                                        </div>
+                                                        <div class="d-flex align-items-center gap-3 border-top pt-2">
+                                                            <div class="small fw-bold text-muted">Adoção do Preço:</div>
+                                                            <div class="form-check form-check-inline mb-0">
+                                                                <input class="form-check-input" type="radio"
+                                                                    name="mercado-metodo-preco" id="metodo-menor"
+                                                                    value="MENOR" checked
+                                                                    onchange="calcularPrecoAdotado()">
+                                                                <label class="form-check-label small"
+                                                                    for="metodo-menor">Menor Preço</label>
+                                                            </div>
+                                                            <div class="form-check form-check-inline mb-0">
+                                                                <input class="form-check-input" type="radio"
+                                                                    name="mercado-metodo-preco" id="metodo-media"
+                                                                    value="MEDIA" onchange="calcularPrecoAdotado()">
+                                                                <label class="form-check-label small"
+                                                                    for="metodo-media">Média Aritmética</label>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </div>
 
                                             <div class="col-md-12">
@@ -7500,6 +7536,53 @@
                     calcularPrecoRetroativo();
                 }
 
+                window.adicionarLinhaFornecedor = function () {
+                    const container = document.getElementById('container-fornecedores');
+                    const div = document.createElement('div');
+                    div.className = 'row g-1 mb-1 align-items-center linha-fornecedor';
+                    div.innerHTML = `
+                        <div class="col-7">
+                            <input type="text" class="form-control form-control-sm input-fornecedor-nome" placeholder="Nome do Fornecedor...">
+                        </div>
+                        <div class="col-4">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text">R$</span>
+                                <input type="text" class="form-control input-fornecedor-valor" oninput="formatMoneyInput(this); calcularPrecoAdotado()" placeholder="0,00">
+                            </div>
+                        </div>
+                        <div class="col-1 text-end">
+                            <button type="button" class="btn btn-sm btn-link text-danger p-0" onclick="removerLinhaFornecedor(this)"><i class="bi bi-dash-circle"></i></button>
+                        </div>
+                    `;
+                    container.appendChild(div);
+                }
+
+                window.removerLinhaFornecedor = function (btn) {
+                    btn.closest('.linha-fornecedor').remove();
+                    calcularPrecoAdotado();
+                }
+
+                window.calcularPrecoAdotado = function () {
+                    const valores = Array.from(document.querySelectorAll('.input-fornecedor-valor'))
+                        .map(input => parseFloat(input.value.replace(/\./g, '').replace(',', '.')) || 0)
+                        .filter(v => v > 0);
+
+                    if (valores.length === 0) return;
+
+                    const metodo = document.querySelector('input[name="mercado-metodo-preco"]:checked').value;
+                    let resultado = 0;
+
+                    if (metodo === 'MENOR') {
+                        resultado = Math.min(...valores);
+                    } else {
+                        resultado = valores.reduce((a, b) => a + b, 0) / valores.length;
+                    }
+
+                    const inputPreco = document.getElementById('mercado-preco');
+                    inputPreco.value = resultado.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    calcularPrecoRetroativo();
+                }
+
                 // Listeners removed (handled by oninput)
 
                 window.adicionarItemMercadoManual = function () {
@@ -7524,6 +7607,13 @@
                     const dataFin = document.getElementById('mercado-data-fin').value;
                     const indFin = document.getElementById('mercado-ind-fin').value;
 
+                    // Fields for Multiple Suppliers
+                    const fornecedores = Array.from(document.querySelectorAll('.linha-fornecedor')).map(div => ({
+                        nome: div.querySelector('.input-fornecedor-nome').value.trim(),
+                        valor: parseFloat(div.querySelector('.input-fornecedor-valor').value.replace(/\./g, '').replace(',', '.')) || 0
+                    })).filter(f => f.nome && f.valor > 0);
+                    const metodoPreco = document.querySelector('input[name="mercado-metodo-preco"]:checked').value;
+
                     if (!desc) { alert("Informe a descrição."); return; }
                     if (!unid) { alert("Informe a unidade."); return; }
                     if (isNaN(preco) || preco <= 0) { alert("Preço inválido."); return; }
@@ -7547,7 +7637,7 @@
                         grupo: 'MATERIAL',
                         coeficiente: coef,
                         anexos: [],
-                        retroativo: calcPrice ? { dataIni, indIni, dataFin, indFin, base: rawPreco } : null
+                        retroativo: { dataIni, indIni, dataFin, indFin, base: rawPreco, fornecedores, metodoPreco }
                     });
 
                     // Reset Form
@@ -7562,6 +7652,10 @@
                     document.getElementById('mercado-ind-fin').value = '';
                     document.getElementById('mercado-preco-calc').textContent = 'R$ 0,00';
                     delete document.getElementById('mercado-preco-calc').dataset.value;
+
+                    // Reset Fornecedores
+                    document.getElementById('container-fornecedores').innerHTML = '';
+                    document.getElementById('metodo-menor').checked = true;
 
                     bootstrap.Modal.getInstance(document.getElementById('modalBuscarItemComposicao')).hide();
                 }
@@ -9280,22 +9374,45 @@
 
                             let currentY = 35;
                             retroativos.forEach(r => {
-                                if (currentY > 240) { doc.addPage(); currentY = 20; }
+                                if (currentY > 220) { doc.addPage(); currentY = 20; }
                                 doc.setTextColor(0); doc.setFontSize(9); doc.setFont("helvetica", "bold");
                                 doc.text(`Item: ${r.codInsumo} - ${r.descInsumo}`, 14, currentY);
                                 currentY += 5;
 
                                 const ret = r.retroativo;
+
+                                // Tabela de Fornecedores (se houver)
+                                if (ret.fornecedores && ret.fornecedores.length > 0) {
+                                    doc.setFontSize(7.5); doc.setTextColor(80);
+                                    doc.text(`Detalhamento das Coletas (${ret.metodoPreco === 'MEDIA' ? 'Média Aritmética' : 'Menor Preço Adotado'}):`, 14, currentY);
+                                    currentY += 2;
+
+                                    doc.autoTable({
+                                        startY: currentY,
+                                        head: [['Fornecedor', 'Valor Cotado']],
+                                        body: ret.fornecedores.map(f => [f.nome, `R$ ${fCur(f.valor)}`]),
+                                        theme: 'grid',
+                                        styles: { fontSize: 7, cellPadding: 1.5 },
+                                        headStyles: { fillColor: cinzaHeader, textColor: 0 },
+                                        margin: { left: 14, right: 100 }
+                                    });
+                                    currentY = doc.lastAutoTable.finalY + 6;
+                                }
+
+                                doc.setFontSize(7.5); doc.setTextColor(80);
+                                doc.text(`Compatibilidade Temporal (Retroação):`, 14, currentY);
+                                currentY += 2;
+
                                 const fator = (Number(ret.indFin) / Number(ret.indIni)) || 1;
                                 doc.autoTable({
                                     startY: currentY,
                                     head: [['Parâmetro', 'Descrição / Valor']],
                                     body: [
-                                        ['Valor Cotado (A)', `R$ ${fCur(ret.base)}`],
+                                        ['Valor de Mercado / Base (A)', `R$ ${fCur(ret.base)}`],
                                         ['Data Cotação / Índice (C)', `${ret.dataIni?.split('-').reverse().join('/') || '-'} | ${fNum4(ret.indIni)}`],
                                         ['Data-Base / Índice (E)', `${ret.dataFin?.split('-').reverse().join('/') || '-'} | ${fNum4(ret.indFin)}`],
                                         ['Fator (E/C)', fator.toFixed(4)],
-                                        ['Preço Adotado (A x Fator)', { content: `R$ ${fCur(Number(ret.base) * fator)}`, styles: { fontStyle: 'bold', textColor: verdeSOP } }]
+                                        ['Preço Adotado Final (A x Fator)', { content: `R$ ${fCur(Number(ret.base) * fator)}`, styles: { fontStyle: 'bold', textColor: verdeSOP } }]
                                     ],
                                     theme: 'grid',
                                     styles: { fontSize: 8, cellPadding: 2 },
@@ -9540,7 +9657,7 @@
                                 <p class="text-muted mb-4" style="font-size: 0.75rem; text-align: justify;">
                                     Considerando a defasagem temporal entre a data da(s) cotação(ões) de mercado e a data-base original deste orçamento, aplicou-se a retroação financeira dos valores. O cálculo consiste na divisão do valor cotado pelo índice inflacionário acumulado no período (ou pela razão entre os índices das datas final e inicial), utilizando o indexador informado na(s) tabela(s) a seguir:
                                 </p>
-                                ${retroativos.map(r => {
+                                 ${retroativos.map(r => {
                             const ret = r.retroativo;
                             const base = parseLocalNum(ret.base);
                             const iIni = parseLocalNum(ret.indIni);
@@ -9548,19 +9665,36 @@
                             const fator = (iFin / iIni) || 1;
                             const dCot = ret.dataIni ? ret.dataIni.split('-').reverse().join('/') : '-';
                             const dBase = ret.dataFin ? ret.dataFin.split('-').reverse().join('/') : '-';
+
+                            const fornecedoresHTML = (ret.fornecedores && ret.fornecedores.length > 0) ? `
+                                <div class="mb-3">
+                                    <div class="fw-bold text-dark mb-1" style="font-size: 0.75rem;">Detalhamento das Coletas (${ret.metodoPreco === 'MEDIA' ? 'Média Aritmética' : 'Menor Preço Adotado'}):</div>
+                                    <table class="table table-sm table-bordered mb-2" style="font-size: 0.7rem; max-width: 500px;">
+                                        <thead class="bg-light"><tr><th>Fornecedor</th><th class="text-end" style="width: 120px;">Valor Cotado</th></tr></thead>
+                                        <tbody>
+                                            ${ret.fornecedores.map(f => `<tr><td>${f.nome}</td><td class="text-end">R$ ${safeLoc(f.valor)}</td></tr>`).join('')}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ` : '';
+
                             return `
-                                        <div class="mb-4 border-bottom pb-3">
-                                            <div class="fw-bold text-dark mb-2" style="font-size: 0.8rem;">Item: ${r.codInsumo} - ${r.descInsumo}</div>
+                                        <div class="mb-5 border-bottom pb-3">
+                                            <div class="fw-bold text-dark mb-2" style="font-size: 0.85rem;">Item: ${r.codInsumo} - ${r.descInsumo}</div>
+                                            
+                                            ${fornecedoresHTML}
+
+                                            <div class="fw-bold text-dark mb-1" style="font-size: 0.75rem;">Compatibilidade Temporal (Retroação):</div>
                                             <table class="table table-bordered table-sm" style="font-size: 0.75rem; max-width: 600px;">
                                                 <thead style="background-color: #f5f5f5;">
                                                     <tr><th style="width: 70%">Parâmetro</th><th class="text-center">Valor / Descrição</th></tr>
                                                 </thead>
                                                 <tbody>
-                                                    <tr><td>Valor Cotado (A)</td><td class="text-center fw-bold">R$ ${safeLoc(base)}</td></tr>
+                                                    <tr><td>Valor de Mercado / Base (A)</td><td class="text-center fw-bold">R$ ${safeLoc(base)}</td></tr>
                                                     <tr><td>Data Cotação / Índice (C)</td><td class="text-center">${dCot} | ${safeLoc(iIni, 3)}</td></tr>
                                                     <tr><td>Data-Base / Índice (E)</td><td class="text-center">${dBase} | ${safeLoc(iFin, 3)}</td></tr>
                                                     <tr><td>Fator de Retroação (E / C)</td><td class="text-center fw-bold">${fator.toFixed(4)}</td></tr>
-                                                    <tr><td>Preço Adotado (A x Fator)</td><td class="text-center fw-bold text-success">R$ ${safeLoc(base * fator)}</td></tr>
+                                                    <tr><td>Preço Adotado Final (A x Fator)</td><td class="text-center fw-bold text-success">R$ ${safeLoc(base * fator)}</td></tr>
                                                 </tbody>
                                             </table>
                                         </div>
