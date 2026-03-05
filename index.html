@@ -24,6 +24,7 @@
     <script src="https://unpkg.com/docx@7.1.0/build/index.js" defer></script>
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js" defer></script>
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js" defer></script>
 
 
     <style>
@@ -56,16 +57,15 @@
             display: none !important;
         }
 
+        /* apenas administradores veem elementos marcados como admin-only */
         body.is-admin .admin-only,
-        body.role-admin .admin-only,
-        body.role-gerente .admin-only {
+        body.role-admin .admin-only {
             display: inline-block !important;
         }
 
         /* Correção para cards flexíveis que são admin-only */
         body.is-admin .home-action-card.admin-only,
-        body.role-admin .home-action-card.admin-only,
-        body.role-gerente .home-action-card.admin-only {
+        body.role-admin .home-action-card.admin-only {
             display: flex !important;
         }
 
@@ -1296,12 +1296,19 @@
             accent-color: var(--sop-green);
         }
 
-        .checkbox-prioritario:hover {
+        .checkbox-prioritario:hover:not(:disabled) {
             opacity: 0.8;
         }
 
-        .checkbox-prioritario:checked {
+        .checkbox-prioritario:checked:not(:disabled) {
             box-shadow: 0 0 4px rgba(13, 110, 253, 0.5);
+        }
+
+        /* Efeito visual "marca d'água" para checkbox como "readonly" (não-admin) */
+        .checkbox-prioritario.readonly-checkbox {
+            opacity: 0.6;
+            cursor: not-allowed;
+            /* Diferente do atributo "disabled" do HTML, isso não mata a accent-color principal */
         }
 
         /* CSS MULTI-SELECT */
@@ -1641,46 +1648,6 @@
 
 </head>
 
-<div class="modal fade" id="modalNovaVersao" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title fs-6 fw-bold"><i class="bi bi-cloud-arrow-up me-2"></i>ATUALIZAR ARQUIVO</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="formNovaVersao">
-                    <input type="hidden" id="update-id-orcamento">
-
-                    <div class="mb-3">
-                        <label class="form-label small fw-bold">NOVO ARQUIVO (PDF/XLS)</label>
-                        <input type="file" class="form-control" id="inputArquivoUpdate" required
-                            accept=".xlsx,.xls,.pdf">
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label small fw-bold">DESCRIÇÃO DAS ALTERAÇÕES</label>
-                        <textarea class="form-control" id="inputDescricaoUpdate" rows="3"
-                            placeholder="Ex: Corrigido o quantitativo do item 5.2 e atualizado valor unitário do item 8."></textarea>
-                        <div class="form-text">Essa informação ficará gravada no histórico da obra.</div>
-                    </div>
-
-                    <div class="alert alert-light border small text-muted">
-                        <i class="bi bi-info-circle me-1"></i> Isso criará uma nova versão (V2, V3...) e notificará que
-                        o arquivo foi atualizado.
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer justify-content-center">
-                <button type="button" class="btn btn-primary w-100 fw-bold" onclick="enviarNovaVersao()">
-                    <i class="bi bi-send-check me-1"></i> SALVAR NOVA VERSÃO
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<body>
 
     <!-- OVERLAY DE LOGIN (Renderizado diretamente no HTML para aparecer imediatamente) -->
     <div id="landingOverlay" class="landing-overlay">
@@ -1803,11 +1770,11 @@
                     data-bs-target="#pane-home" data-bs-toggle="tab">Início</button></li>
             <li class="nav-item" data-roles="admin,gerente,fiscal"><button class="nav-link"
                     data-bs-target="#pane-financeiro" data-bs-toggle="tab">Financeiro</button></li>
-            <li class="nav-item" data-roles="admin,gerente"><button class="nav-link" data-bs-target="#pane-gerencial"
+            <li class="nav-item" data-roles="admin,gerente,fiscal"><button class="nav-link" data-bs-target="#pane-gerencial"
                     data-bs-toggle="tab">Gerencial</button></li>
-            <li class="nav-item" data-roles="admin,gerente"><button class="nav-link" data-bs-target="#pane-prazos"
+            <li class="nav-item" data-roles="admin,gerente,fiscal"><button class="nav-link" data-bs-target="#pane-prazos"
                     data-bs-toggle="tab">Prazos</button></li>
-            <li class="nav-item" data-roles="admin,gerente,fiscal"><button class="nav-link"
+            <li class="nav-item" data-roles="admin,gerente,fiscal,externo"><button class="nav-link"
                     data-bs-target="#pane-reuniao" data-bs-toggle="tab">Processos</button></li>
             <li class="nav-item" data-roles="admin,gerente,fiscal,externo,guest"><button class="nav-link"
                     data-bs-target="#pane-orcamentos" data-bs-toggle="tab">Orçamentos</button></li>
@@ -1872,7 +1839,7 @@
                 <!-- Hub de Navegação (Tiles) -->
                 <div class="home-quick-actions-grid">
                     <!-- 1. Administração -->
-                    <div class="home-action-card admin-only" data-pane="pane-admin" onclick="showPane('pane-admin')">
+                    <div class="home-action-card" data-pane="pane-admin" onclick="showPane('pane-admin')">
                         <div class="home-action-icon" style="color: #666;"><i class="bi bi-shield-lock"></i></div>
                         <div class="home-action-text">
                             <h3>Administração</h3>
@@ -1905,7 +1872,7 @@
                         </div>
                     </div>
                     <!-- 5. Painel Gerencial -->
-                    <div class="home-action-card" data-pane="pane-gerencial" data-roles="admin,gerente"
+                    <div class="home-action-card" data-pane="pane-gerencial" data-roles="admin,gerente,fiscal"
                         onclick="showPane('pane-gerencial')">
                         <div class="home-action-icon"><i class="bi bi-pie-chart"></i></div>
                         <div class="home-action-text">
@@ -1914,7 +1881,7 @@
                         </div>
                     </div>
                     <!-- 6. Prazos -->
-                    <div class="home-action-card" data-pane="pane-prazos" data-roles="admin,gerente"
+                    <div class="home-action-card" data-pane="pane-prazos" data-roles="admin,gerente,fiscal"
                         onclick="showPane('pane-prazos')">
                         <div class="home-action-icon"><i class="bi bi-clock-history"></i></div>
                         <div class="home-action-text">
@@ -2491,17 +2458,25 @@
                             <div class="col-auto">
                                 <label class="form-label small text-muted fw-bold text-uppercase mb-1"
                                     style="visibility:hidden;">.</label>
-                                <button class="btn btn-sm btn-grid-clear w-100" id="btn-reuniao-clear"
-                                    style="height: 30px; line-height: 1;">
-                                    Limpar
-                                </button>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-sm btn-outline-success fw-bold" id="btn-reuniao-export"
+                                        style="height: 30px; line-height: 1; display: flex; align-items: center; gap: 4px;"
+                                        onclick="exportarProcessos()" title="Exportar resultado filtrado para Excel">
+                                        <i class="bi bi-file-earmark-excel"></i> Exportar
+                                    </button>
+                                    <button class="btn btn-sm btn-grid-clear" id="btn-reuniao-clear"
+                                        style="height: 30px; line-height: 1;">
+                                        Limpar
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="flex-grow-1 border rounded bg-white"
+                    <div class="table-responsive flex-grow-1 border rounded bg-white"
                         style="box-shadow: inset 0 -1px 0 rgba(0,0,0,0.1);">
-                        <table class="table table-hover table-striped align-middle mb-0" style="font-size: 0.9rem;">
+                        <table class="table table-hover table-striped align-middle mb-0"
+                            style="font-size: 0.9rem; min-width: 1100px;">
                             <thead class="table-light"
                                 style="position: sticky; top: 0; z-index: 1020; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border-top: 1px solid #dee2e6;">
                             </thead>
@@ -3640,6 +3615,85 @@
                 data-bs-target="#modalNovaVersao"></button>
 
             <script>
+                // ===== FUNÇÕES STUB (Implementação Mínima para Funcionalidades em Desenvolvimento) =====
+                /**
+                 * [STUB] Login com Email - Não implementada
+                 * Usar com cautela em produção
+                 */
+                async function signInWithEmail(email, password) {
+                    console.error('[STUB] signInWithEmail não implementada. Email:', email);
+                    const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('landingOverlay'));
+                    const feedback = document.getElementById('landing-feedback');
+                    if (feedback) {
+                        feedback.style.display = 'block';
+                        feedback.innerHTML = 'Erro: Login não está configurado. Contate o administrador.';
+                    }
+                    return false;
+                }
+
+                /**
+                 * [STUB] Logout - Não implementada
+                 */
+                async function signOutUser() {
+                    console.error('[STUB] signOutUser não implementada');
+                    alert('Logout não implementado.');
+                }
+
+                /**
+                 * [STUB] Cadastro - Não implementada
+                 */
+                async function signUpRequest(nome, sobrenome, matricula, senha) {
+                    console.error('[STUB] signUpRequest não implementada');
+                    const feedback = document.getElementById('reg-feedback');
+                    if (feedback) {
+                        feedback.style.display = 'block';
+                        feedback.innerHTML = 'Erro: Cadastro não está configurado.';
+                    }
+                    return false;
+                }
+
+                /**
+                 * [STUB] Exportar Processos - Não implementada
+                 */
+                function exportarProcessos() {
+                    console.warn('[STUB] exportarProcessos não implementada (botão existe mas função vazia)');
+                    alert('Recurso de exportação ainda está em desenvolvimento. Tente novamente mais tarde.');
+                }
+
+                /**
+                 * [STUB] Calcular Dias Devolução - Função faltava, adicionada
+                 */
+                function calcularDiasDevolucao() {
+                    try {
+                        const elDevolucao = document.getElementById('det_data_devolucao');
+                        const elBadge = document.getElementById('det_badge_dias_dev');
+                        const elRecebimento = document.getElementById('det_data_recebimento');
+                        
+                        if (!elDevolucao || !elBadge || !elRecebimento) {
+                            console.warn('[WARN] Elementos não encontrados para calcularDiasDevolucao');
+                            return;
+                        }
+                        
+                        const strDataRecebimento = elRecebimento.value;
+                        const strDataDevolucao = elDevolucao.value;
+                        
+                        if (!strDataDevolucao) {
+                            elBadge.textContent = '– dias';
+                            return;
+                        }
+                        
+                        const dataRecebimento = isoParaDate(dataParaISO(strDataRecebimento));
+                        const dataDevolucao = isoParaDate(dataParaISO(strDataDevolucao));
+                        
+                        if (dataRecebimento && dataDevolucao && !isNaN(dataRecebimento) && !isNaN(dataDevolucao)) {
+                            const dias = Math.round((dataDevolucao - dataRecebimento) / (1000 * 60 * 60 * 24));
+                            elBadge.textContent = dias + ' dias';
+                        }
+                    } catch (err) {
+                        console.error('[ERRO] calcularDiasDevolucao:', err);
+                    }
+                }
+
                 // Variáveis globais de estado
                 let currentCompositionData = null;
 
@@ -3923,11 +3977,30 @@
                     return null;
                 }
 
+                /**
+                 * [FIX-ALTO] Converte string de moeda (BRL) para número
+                 * Suporta múltiplos formatos: 'R$ 1.234,56', '1.234,56', '1234.56'
+                 * Melhora: Validação de resultado e tratamento de edge cases
+                 */
                 function moedaParaNumero(strValor) {
-                    if (!strValor) return 0;
-                    if (typeof strValor === 'number') return strValor;
-                    const limpo = strValor.toString().replace(/\./g, '').replace(',', '.');
-                    return parseFloat(limpo) || 0;
+                    if (!strValor && strValor !== 0) return 0;
+                    if (typeof strValor === 'number') {
+                        return isFinite(strValor) ? strValor : 0;
+                    }
+                    
+                    // Remove 'R$', espaços, símbolos
+                    let limpo = strValor.toString().trim().replace(/R\$|\s+/g, '');
+                    
+                    if (!limpo) return 0;
+                    
+                    // Se contém vírgula (formato brasileiro 1.234,56)
+                    if (limpo.includes(',')) {
+                        limpo = limpo.replace(/\./g, '').replace(',', '.');
+                    }
+                    // Senão assume formato internacional (1234.56)
+                    
+                    const resultado = parseFloat(limpo);
+                    return (isFinite(resultado) && resultado >= 0) ? resultado : 0;
                 }
 
                 function isoParaDate(isoStr) {
@@ -4136,6 +4209,11 @@
                             throw new Error(`Tabela "processos" não acessível: ${error.message}`);
                         }
 
+                        // [FIX-CRÍTICO] Validação: data pode ser null/undefined
+                        if (!Array.isArray(data)) {
+                            throw new Error('Tipo de dados inválido: esperado array, recebido ' + typeof data);
+                        }
+
                         if (!data || data.length === 0) {
                             console.warn('[AVISO] Nenhum dado retornado. Tabela vazia ou não existe.');
                         } else {
@@ -4168,11 +4246,13 @@
 
 
                     // --- LÓGICA DE FILTRAGEM PARA FISCAL ---
-                    const userRole = localStorage.getItem('sop_role');
+                    // [FIX-ALTO] Validação de role: localStorage retorna string, nunca booleano
+                    const userRole = (localStorage.getItem('sop_role') || 'guest').toString().trim().toLowerCase();
                     const userEmail = localStorage.getItem('sop_user');
                     let fiscalName = null;
+                    const isFiscal = userRole === 'fiscal';
 
-                    if (userRole === 'fiscal' && userEmail) {
+                    if (isFiscal && userEmail) {
                         try {
                             // 1. Primeiro tenta buscar o nome/sobrenome no banco
                             const { data: userData, error: userError } = await sbClient
@@ -4234,6 +4314,13 @@
                         }
                     }
 
+                    // [CRÍTICO-FIX] Validação: data pode ser null/undefined após desestruturação
+                    if (!Array.isArray(data)) {
+                        console.error('[ERRO] Dados não são array. Tipo:', typeof data);
+                        if (loader) loader.style.display = 'block';
+                        return;
+                    }
+
                     allData = data.map(r => {
                         const dataAbertura = isoParaDate(r.data_abertura);
                         const dataAprov = isoParaDate(r.data_aprovacao_gecope);
@@ -4274,6 +4361,7 @@
                             acrescGecope: Number(r.acresc_gecope) || 0,
                             supressGecope: Number(r.supress_gecope) || 0,
                             repercGecope: Number(r.reperc_gecope) || 0,
+                            prioritario: r.prioritario || false,
 
                             // Audit Data Mapping
                             criador: r.criador,
@@ -4663,6 +4751,12 @@
                 function showPane(paneId) {
                     const tabBtn = document.querySelector(`#dashboardTabs [data-bs-target="#${paneId}"]`);
                     if (tabBtn) {
+                        // não tenta abrir abas que foram escondidas por permissões
+                        const container = tabBtn.closest('li');
+                        if (container && container.style.display === 'none') {
+                            console.warn(`Acesso negado ao painel ${paneId}`);
+                            return;
+                        }
                         tabBtn.click();
                         // Scroll suave para o topo para dar feedback visual de mudança de tela
                         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -4763,9 +4857,50 @@
                     });
 
                     wireEvents();
+                    applyRBACToPainels();
                     verificarAdminSalvo();
                     carregarOrcamentos();
                 });
+
+                // --- FUNÇÃO PARA APLICAR RBAC NOS PAINÉIS ---
+                function applyRBACToPainels() {
+                    const role = getCurrentUserRole();
+                    
+                    if (role === 'fiscal') {
+                        // Ocultar filtro de Fiscal para Fiscal (Painel Financeiro)
+                        if (fin.fiscal && fin.fiscal.parentElement) {
+                            fin.fiscal.parentElement.parentElement.style.display = 'none';
+                        }
+                        
+                        // Ocultar filtro de Fiscal para Fiscal (Painel Gerencial)
+                        if (ger.fiscal && ger.fiscal.parentElement) {
+                            ger.fiscal.parentElement.parentElement.style.display = 'none';
+                        }
+                        
+                        // Ocultar filtro de Fiscal para Fiscal (Painel Prazos)
+                        if (pr.fiscal && pr.fiscal.parentElement) {
+                            pr.fiscal.parentElement.parentElement.style.display = 'none';
+                        }
+                        
+                        // Desabilitar botão Limpar para Fiscal (Painel Financeiro)
+                        if (fin.clear) {
+                            fin.clear.disabled = true;
+                            fin.clear.title = 'Filtro automático por fiscal - não pode ser alterado';
+                        }
+                        
+                        // Desabilitar botão Limpar para Fiscal (Painel Gerencial)
+                        if (ger.clear) {
+                            ger.clear.disabled = true;
+                            ger.clear.title = 'Filtro automático por fiscal - não pode ser alterado';
+                        }
+                        
+                        // Desabilitar botão Limpar para Fiscal (Painel Prazos)
+                        if (pr.clear) {
+                            pr.clear.disabled = true;
+                            pr.clear.title = 'Filtro automático por fiscal - não pode ser alterado';
+                        }
+                    }
+                }
 
                 function parseMoneyInput(val) { if (!val) return 0; return parseFloat(val.replace(/\./g, '').replace(',', '.')) || 0; }
                 function formatMoneyInput(val) { return val.toLocaleString('pt-BR', { minimumFractionDigits: 2 }); }
@@ -4946,7 +5081,22 @@
                 function getFinanceiroData() {
                     const sts = getSelectedValues(fin.status); const tps = getSelectedValues(fin.tipo); const fis = getSelectedValues(fin.fiscal);
                     const cts = getSelectedValues(fin.contratada); const crs = getSelectedValues(fin.contratante); const ans = getSelectedValues(fin.ano);
+                    
+                    // Filtragem automática para Fiscal
+                    const role = getCurrentUserRole();
+                    const userFiscal = role === 'fiscal' ? localStorage.getItem('sop_fiscal_name') || localStorage.getItem('sop_user_name') || '' : '';
+                    
                     return allData.filter(d => {
+                        // Filtro automático para Fiscal
+                        if (role === 'fiscal' && userFiscal) {
+                            const dFiscal = (d.fiscal || "").toUpperCase().trim();
+                            const userFiscalUpper = userFiscal.toUpperCase().trim();
+                            // Normalização: remove pontos e hífens
+                            const dFiscalNorm = dFiscal.replace(/[\.\-]+/g, ' ').trim();
+                            const userFiscalNorm = userFiscalUpper.replace(/[\.\-]+/g, ' ').trim();
+                            if (dFiscalNorm !== userFiscalNorm) return false;
+                        }
+                        
                         if (sts.length > 0 && !sts.includes(d.status)) return false;
                         if (tps.length > 0 && !tps.includes(d.tipo)) return false;
                         if (fis.length > 0 && !fis.includes(d.fiscal)) return false;
@@ -5046,7 +5196,28 @@
                 const ger = { fiscal: document.getElementById("gerencial-filter-fiscal"), status: document.getElementById("gerencial-filter-status"), clear: document.getElementById("btn-gerencial-clear") };
                 let gerBase = [];
                 function updateGerencialFilters(rows) { gerBase = rows; fillSelect(ger.fiscal, gerBase.map(d => d.fiscal)); fillSelect(ger.status, gerBase.map(d => d.status)); updateGerencial(); }
-                function getGerencialData() { const f = getSelectedValues(ger.fiscal); const s = getSelectedValues(ger.status); return gerBase.filter(d => (f.length === 0 || f.includes(d.fiscal)) && (s.length === 0 || s.includes(d.status))); }
+                function getGerencialData() { 
+                    const f = getSelectedValues(ger.fiscal); 
+                    const s = getSelectedValues(ger.status); 
+                    
+                    // Filtragem automática para Fiscal
+                    const role = getCurrentUserRole();
+                    const userFiscal = role === 'fiscal' ? localStorage.getItem('sop_fiscal_name') || localStorage.getItem('sop_user_name') || '' : '';
+                    
+                    return gerBase.filter(d => {
+                        // Filtro automático para Fiscal
+                        if (role === 'fiscal' && userFiscal) {
+                            const dFiscal = (d.fiscal || "").toUpperCase().trim();
+                            const userFiscalUpper = userFiscal.toUpperCase().trim();
+                            // Normalização: remove pontos e hífens
+                            const dFiscalNorm = dFiscal.replace(/[\.\-]+/g, ' ').trim();
+                            const userFiscalNorm = userFiscalUpper.replace(/[\.\-]+/g, ' ').trim();
+                            if (dFiscalNorm !== userFiscalNorm) return false;
+                        }
+                        
+                        return (f.length === 0 || f.includes(d.fiscal)) && (s.length === 0 || s.includes(d.status));
+                    });
+                }
                 function updateGerencial() {
                     const rows = getGerencialData();
                     document.getElementById("gerencial-count-badge").textContent = `${rows.length} processos`;
@@ -5059,7 +5230,28 @@
                 const pr = { fiscal: document.getElementById("prazos-filter-fiscal"), status: document.getElementById("prazos-filter-status"), clear: document.getElementById("btn-prazos-clear") };
                 let przBase = [];
                 function updatePrazosFilters(rows) { przBase = rows; fillSelect(pr.fiscal, przBase.map(d => d.fiscal)); fillSelect(pr.status, przBase.map(d => d.status)); updatePrazos(); }
-                function getPrazosData() { const f = getSelectedValues(pr.fiscal); const s = getSelectedValues(pr.status); return przBase.filter(d => (f.length === 0 || f.includes(d.fiscal)) && (s.length === 0 || s.includes(d.status))); }
+                function getPrazosData() { 
+                    const f = getSelectedValues(pr.fiscal); 
+                    const s = getSelectedValues(pr.status); 
+                    
+                    // Filtragem automática para Fiscal
+                    const role = getCurrentUserRole();
+                    const userFiscal = role === 'fiscal' ? localStorage.getItem('sop_fiscal_name') || localStorage.getItem('sop_user_name') || '' : '';
+                    
+                    return przBase.filter(d => {
+                        // Filtro automático para Fiscal
+                        if (role === 'fiscal' && userFiscal) {
+                            const dFiscal = (d.fiscal || "").toUpperCase().trim();
+                            const userFiscalUpper = userFiscal.toUpperCase().trim();
+                            // Normalização: remove pontos e hífens
+                            const dFiscalNorm = dFiscal.replace(/[\.\-]+/g, ' ').trim();
+                            const userFiscalNorm = userFiscalUpper.replace(/[\.\-]+/g, ' ').trim();
+                            if (dFiscalNorm !== userFiscalNorm) return false;
+                        }
+                        
+                        return (f.length === 0 || f.includes(d.fiscal)) && (s.length === 0 || s.includes(d.status));
+                    });
+                }
                 function updatePrazos() {
                     const rows = getPrazosData();
                     const aprov = rows.filter(d => String(d.status).toUpperCase().includes("APROVADO") && isFinite(d.prazoDias));
@@ -5077,7 +5269,17 @@
                 let mtBase = [];
                 function getMetaDate(row, setD) {
                     const key = `meta:${row.processo}`;
-                    if (setD !== undefined) { if (!setD) localStorage.removeItem(key); else localStorage.setItem(key, setD.toISOString().substring(0, 10)); row.dataCompromissoFiscal = setD; return setD; }
+                    if (setD !== undefined) {
+                        // RBAC: apenas admins podem definir/excluir metas
+                        if (!canMarkDateAsMeta()) {
+                            console.warn(`[RBAC] usuário não pode alterar meta do processo ${row.processo}`);
+                            return null;
+                        }
+                        if (!setD) localStorage.removeItem(key);
+                        else localStorage.setItem(key, setD.toISOString().substring(0, 10));
+                        row.dataCompromissoFiscal = setD;
+                        return setD;
+                    }
                     if (row.dataCompromissoFiscal instanceof Date) return row.dataCompromissoFiscal;
                     const ls = localStorage.getItem(key); if (ls) { const d = isoParaDate(ls); if (d) { row.dataCompromissoFiscal = d; return d; } }
                     return null;
@@ -5104,29 +5306,61 @@
                     return 99;
                 }
 
-                // Funções para gerenciar processos prioritários (marcador simples)
+                // Funções para gerenciar processos prioritários
                 function isPrioritario(row) {
-                    const key = `prioritario:${row.processo}`;
-                    return localStorage.getItem(key) === 'true';
+                    return row.prioritario === true;
                 }
-                function setPrioritario(processo, isPriority) {
-                    const key = `prioritario:${processo}`;
-                    if (isPriority) {
-                        localStorage.setItem(key, 'true');
-                    } else {
-                        localStorage.removeItem(key);
+
+                async function setPrioritario(processo, isPriority) {
+                    // RBAC guard - apenas administradores podem alterar prioridade
+                    if (!canMarkProcessAsPriority()) {
+                        const role = getCurrentUserRole();
+                        console.warn(`[RBAC] Usuário (${role}) não tem permissão para marcar como prioritário`);
+                        alert('Você não tem permissão para marcar processos como prioritário.');
+                        return;
+                    }
+
+                    // 1. Atualizar imediatamente em memória (feedback visual instantâneo)
+                    const row = allData.find(d => d.processo === processo);
+                    if (row) row.prioritario = isPriority;
+
+                    // 2. Realizar comunicação com o Supabase nos bastidores (Background Sync)
+                    try {
+                        const { error } = await sbClient
+                            .from('processos')
+                            .update({ prioritario: isPriority })
+                            .eq('processo', processo);
+
+                        if (error) {
+                            console.error('[ERRO] Falha ao marcar processo prioritário: ', error.message);
+                            alert("Aviso: Falha de conexão ao salvar status prioritário nas nuvens.");
+                        }
+                    } catch (e) {
+                        console.error("Erro interno no setPrioritario:", e);
                     }
                 }
 
-                let currentSort = { col: null, dir: 'asc' };
+                let currentSort = []; // Array of { col, dir }
                 function changeSort(columnKey) {
-                    if (currentSort.col === columnKey) { currentSort.dir = currentSort.dir === 'asc' ? 'desc' : 'asc'; }
-                    else { currentSort.col = columnKey; currentSort.dir = 'asc'; }
+                    const index = currentSort.findIndex(s => s.col === columnKey);
+                    if (index !== -1) {
+                        if (currentSort[index].dir === 'asc') {
+                            currentSort[index].dir = 'desc';
+                        } else {
+                            currentSort.splice(index, 1);
+                        }
+                    } else {
+                        currentSort.push({ col: columnKey, dir: 'asc' });
+                    }
                     updateReuniao();
                 }
                 function getSortIcon(columnKey) {
-                    if (currentSort.col !== columnKey) { return '<i class="bi bi-arrow-down-up text-secondary ms-1" style="font-size: 1rem; opacity: 0.4;"></i>'; }
-                    return currentSort.dir === 'asc' ? '<i class="bi bi-sort-down-alt text-success ms-1" style="font-size: 1.1rem;"></i>' : '<i class="bi bi-sort-up text-success ms-1" style="font-size: 1.1rem;"></i>';
+                    const sort = currentSort.find(s => s.col === columnKey);
+                    const sortIndex = currentSort.findIndex(s => s.col === columnKey);
+                    const indexBadge = currentSort.length > 1 && sortIndex !== -1 ? `<span class="badge bg-success ms-1" style="font-size: 0.6rem; padding: 2px 4px;">${sortIndex + 1}</span>` : '';
+
+                    if (!sort) { return '<i class="bi bi-arrow-down-up text-secondary ms-1" style="font-size: 1rem; opacity: 0.4;"></i>'; }
+                    return (sort.dir === 'asc' ? '<i class="bi bi-sort-down-alt text-success ms-1" style="font-size: 1.1rem;"></i>' : '<i class="bi bi-sort-up text-success ms-1" style="font-size: 1.1rem;"></i>') + indexBadge;
                 }
                 function updateReuniaoFilters(rows) { mtBase = rows; updateReuniao(); }
 
@@ -5214,6 +5448,13 @@
                     const maxDias = rows.length > 0 ? Math.max(...rows.map(d => { if (d.dataAbertura instanceof Date) return Math.floor((new Date() - d.dataAbertura) / (1000 * 60 * 60 * 24)); return 0; })) : 0;
                     document.getElementById("card_proc_dias").textContent = maxDias;
 
+                    const btnExport = document.getElementById("btn-reuniao-export");
+                    if (btnExport) {
+                        btnExport.disabled = rows.length === 0;
+                        btnExport.title = rows.length === 0 ? "Nada para exportar" : "Exportar tudo do resultado filtrado para Excel";
+                    }
+                    window.currentVisibleRows = rows; // Armazena globalmente para exportação
+
                     const columns = [
                         { title: "Ações", width: "50px", key: null, align: "center" }, { title: "Prioritário", width: "80px", key: "prioritario", align: "center" }, { title: "Processo", width: "200px", key: "processo", align: "start" }, { title: "Meta", width: "100px", key: "meta", align: "start" },
                         { title: "Status", width: "146px", key: "status", align: "start" }, { title: "Analista", width: "100px", key: "analista", align: "center" }, { title: "Abertura", width: "100px", key: "abertura", align: "center" },
@@ -5229,28 +5470,33 @@
                     thead.innerHTML = headerHTML;
 
                     rows.sort((a, b) => {
-                        if (!currentSort.col) {
+                        if (currentSort.length === 0) {
                             const pA = statusPriority(a.status), pB = statusPriority(b.status);
                             if (pA !== pB) return pA - pB;
                             const dA = a.dataAbertura instanceof Date ? a.dataAbertura.getTime() : 8640000000000000;
                             const dB = b.dataAbertura instanceof Date ? b.dataAbertura.getTime() : 8640000000000000;
                             return dA - dB;
                         }
-                        let valA, valB;
-                        switch (currentSort.col) {
-                            case 'prioritario': valA = isPrioritario(a) ? 1 : 0; valB = isPrioritario(b) ? 1 : 0; break;
-                            case 'processo': valA = a.processo || ""; valB = b.processo || ""; break;
-                            case 'meta': const mA = getMetaDate(a); const mB = getMetaDate(b); valA = mA ? mA.getTime() : 0; valB = mB ? mB.getTime() : 0; break;
-                            case 'status': valA = (a.status || "").toLowerCase(); valB = (b.status || "").toLowerCase(); break;
-                            case 'analista': valA = (a.analista || "").toString(); valB = (b.analista || "").toString(); break;
-                            case 'abertura': valA = a.dataAbertura instanceof Date ? a.dataAbertura.getTime() : 0; valB = b.dataAbertura instanceof Date ? b.dataAbertura.getTime() : 0; break;
-                            case 'dias': valA = a.dataAbertura instanceof Date ? (new Date() - a.dataAbertura) : -1; valB = b.dataAbertura instanceof Date ? (new Date() - b.dataAbertura) : -1; break;
-                            case 'contratante': valA = (a.contratante || "").toLowerCase(); valB = (b.contratante || "").toLowerCase(); break;
-                            case 'contratada': valA = (a.contratada || "").toLowerCase(); valB = (b.contratada || "").toLowerCase(); break;
-                            case 'descricao': valA = (a.descricao || "").toLowerCase(); valB = (b.descricao || "").toLowerCase(); break;
-                            default: return 0;
+
+                        for (let sort of currentSort) {
+                            let valA, valB;
+                            switch (sort.col) {
+                                case 'prioritario': valA = isPrioritario(a) ? 1 : 0; valB = isPrioritario(b) ? 1 : 0; break;
+                                case 'processo': valA = a.processo || ""; valB = b.processo || ""; break;
+                                case 'meta': const mA = getMetaDate(a); const mB = getMetaDate(b); valA = mA ? mA.getTime() : 0; valB = mB ? mB.getTime() : 0; break;
+                                case 'status': valA = (a.status || "").toLowerCase(); valB = (b.status || "").toLowerCase(); break;
+                                case 'analista': valA = (a.analista || "").toString(); valB = (b.analista || "").toString(); break;
+                                case 'abertura': valA = a.dataAbertura instanceof Date ? a.dataAbertura.getTime() : 0; valB = b.dataAbertura instanceof Date ? b.dataAbertura.getTime() : 0; break;
+                                case 'dias': valA = a.dataAbertura instanceof Date ? (new Date() - a.dataAbertura) : -1; valB = b.dataAbertura instanceof Date ? (new Date() - b.dataAbertura) : -1; break;
+                                case 'contratante': valA = (a.contratante || "").toLowerCase(); valB = (b.contratante || "").toLowerCase(); break;
+                                case 'contratada': valA = (a.contratada || "").toLowerCase(); valB = (b.contratada || "").toLowerCase(); break;
+                                case 'descricao': valA = (a.descricao || "").toLowerCase(); valB = (b.descricao || "").toLowerCase(); break;
+                                default: continue;
+                            }
+                            if (valA < valB) return sort.dir === 'asc' ? -1 : 1;
+                            if (valA > valB) return sort.dir === 'asc' ? 1 : -1;
                         }
-                        if (valA < valB) return currentSort.dir === 'asc' ? -1 : 1; if (valA > valB) return currentSort.dir === 'asc' ? 1 : -1; return 0;
+                        return 0;
                     });
 
                     mt.body.innerHTML = rows.map(d => {
@@ -5273,8 +5519,8 @@
                         const fiscalNome = (d.fiscal || "").toUpperCase();
                         return `
         <tr style="vertical-align: middle;">
-            <td class="text-center">${uRole !== 'fiscal' ? `<button class="btn btn-sm btn-light border" onclick="abrirDetalhes('${escapeHTML(d.processo)}')" title="Ver detalhes"><i class="bi bi-eye-fill" style="color: var(--sop-blue);"></i></button>` : ''}</td>
-            <td class="text-center"><input type="checkbox" class="checkbox-prioritario" data-proc="${escapeHTML(d.processo)}" ${isPrioritario(d) ? 'checked' : ''} title="Marcar como prioritário" ${uRole !== 'admin' ? 'disabled' : ''} /></td>
+            <td class="text-center">${['admin', 'gerente'].includes(uRole) ? `<button class="btn btn-sm btn-light border" onclick="abrirDetalhes('${escapeHTML(d.processo)}')" title="Ver detalhes"><i class="bi bi-eye-fill" style="color: var(--sop-blue);"></i></button>` : ''}</td>
+            <td class="text-center"><input type="checkbox" class="checkbox-prioritario ${uRole !== 'admin' ? 'readonly-checkbox' : ''}" data-proc="${escapeHTML(d.processo)}" ${isPrioritario(d) ? 'checked' : ''} title="${uRole === 'admin' ? 'Marcar como prioritário' : 'Você não tem permissão'}" ${uRole !== 'admin' ? 'onclick=\"return false;\" tabindex=\"-1\"' : ''} /></td>
             <td><div style="font-weight: 700; font-size: 0.95rem; color: #000; white-space: nowrap;">${escapeHTML(d.processo)}</div><div class="mt-1 text-muted" style="font-size: 0.75rem; font-weight: 500;"><i class="bi bi-person-fill me-1"></i>${escapeHTML(fiscalNome)}</div></td>
             <td><div class="mb-1"><span class="badge rounded-pill ${mCls}" style="font-size: 0.75rem;">${mSt}</span></div><input type="date" class="form-control form-control-sm" style="font-size: 0.75rem; padding: 2px 4px; height: auto;" data-proc="${escapeHTML(d.processo)}" value="${mIso}" title="Alterar Meta" ${uRole !== 'admin' ? 'disabled' : ''} /></td>
             <td><span class="badge rounded-pill ${stCls} badge-custom-size">${d.status}</span></td>
@@ -5303,6 +5549,305 @@
                         updateReuniao();
                     }));
                 }
+
+                async function exportarProcessos() {
+                    const rows = window.currentVisibleRows || [];
+                    if (rows.length === 0) {
+                        alert("Nenhum dado visível para exportar.");
+                        return;
+                    }
+
+                    // Verificar se ExcelJS está disponível
+                    if (typeof ExcelJS === 'undefined') {
+                        alert("❌ Biblioteca ExcelJS não carregada ainda. Aguarde e tente novamente.");
+                        return;
+                    }
+
+                    const btn = document.getElementById('btn-reuniao-export');
+                    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Gerando...'; }
+
+                    try {
+                        const now = new Date();
+                        const dateExport = now.toLocaleDateString('pt-BR') + ' ' + now.toLocaleTimeString('pt-BR');
+                        const userName = localStorage.getItem('sop_user_name') || 'Não identificado';
+
+                        // Coletar filtros ativos
+                        const filtrosAtivos = [];
+                        const metaVal = document.getElementById('meetingMetaSelect')?.value;
+                        const priorVal = document.getElementById('meetingPrioritarioSelect')?.value;
+                        const searchVal = document.getElementById('meetingSearch')?.value?.trim();
+                        if (metaVal) filtrosAtivos.push(`Meta: ${metaVal}`);
+                        if (priorVal) filtrosAtivos.push(`Prioritário: ${priorVal}`);
+                        if (searchVal) filtrosAtivos.push(`Busca: "${searchVal}"`);
+                        // Multi-selects de status e fiscal
+                        const statusSel = Array.from(document.getElementById('meetingStatusSelect')?.selectedOptions || []).map(o => o.text).filter(t => t !== 'Todos');
+                        const fiscalSel = Array.from(document.getElementById('meetingFiscalSelect')?.selectedOptions || []).map(o => o.text).filter(t => t !== 'Todos');
+                        if (statusSel.length > 0) filtrosAtivos.push(`Status: ${statusSel.join(', ')}`);
+                        if (fiscalSel.length > 0) filtrosAtivos.push(`Fiscal: ${fiscalSel.join(', ')}`);
+                        const filtrosStr = filtrosAtivos.length > 0 ? filtrosAtivos.join(' | ') : 'Sem filtros aplicados';
+
+                        // ── Criar workbook ExcelJS ──
+                        const workbook = new ExcelJS.Workbook();
+                        workbook.creator = 'GECOPE / SOP-CE';
+                        workbook.created = now;
+                        const ws = workbook.addWorksheet('Processos GECOPE', {
+                            pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 }
+                        });
+
+                        // ── PALETA DE CORES SOP ──
+                        const COR_VERDE = '008F3D';   // Verde SOP principal
+                        const COR_VERDE_DARK = '007233';
+                        const COR_VERDE_CLARO = 'E8F5E9';   // fundo bloco logo
+                        const COR_CINZA_CLARO = 'F5F5F5';   // fundo linhas zebra
+                        const COR_HEADER_BG = '1B5E20';   // Verde escuro para cabeçalho da tabela
+                        const COR_META_BG = 'EEF8F1';   // Fundo linha de metadados
+
+                        // ── DEFINIÇÃO DAS COLUNAS (LARGURAS FIXAS CONFORME SOLICITADO) ──
+                        const colConfig = [
+                            { key: 'prioritario', header: 'Prioritário', width: 11 },
+                            { key: 'processo', header: 'Processo', width: 23 },
+                            { key: 'metaStatus', header: 'Meta (Status)', width: 16 },
+                            { key: 'dataMeta', header: 'Data Meta', width: 16 },
+                            { key: 'status', header: 'Status', width: 32 },
+                            { key: 'analista', header: 'Analista', width: 12 },
+                            { key: 'dataAbertura', header: 'Data Abertura', width: 16 },
+                            { key: 'dias', header: 'Dias', width: 9 },
+                            { key: 'contratante', header: 'Contratante', width: 14 },
+                            { key: 'contratada', header: 'Contratada', width: 35 },
+                            { key: 'descricao', header: 'Descrição', width: 75 },
+                        ];
+                        const totalCols = colConfig.length; // 11
+                        const ROW_MIN_H = 20;
+
+                        // Aplicar larguras fixas e chaves
+                        colConfig.forEach((c, i) => {
+                            ws.getColumn(i + 1).width = c.width;
+                            ws.getColumn(i + 1).key = c.key;
+                        });
+
+                        // ─────────────────────────────────────────
+                        // LINHA 1 – BLOCO LOGO (SOP-CE simulado)
+                        // ─────────────────────────────────────────
+                        ws.mergeCells(1, 1, 2, 2);
+                        const logoCell = ws.getCell('A1');
+                        logoCell.value = 'SOP-CE';
+                        logoCell.font = { name: 'Montserrat', bold: true, size: 22, color: { argb: 'FF' + COR_VERDE } };
+                        logoCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + COR_VERDE_CLARO } };
+                        logoCell.alignment = { vertical: 'middle', horizontal: 'center' };
+                        logoCell.border = {
+                            top: { style: 'medium', color: { argb: 'FF' + COR_VERDE } },
+                            left: { style: 'medium', color: { argb: 'FF' + COR_VERDE } },
+                            bottom: { style: 'medium', color: { argb: 'FF' + COR_VERDE } },
+                            right: { style: 'thin', color: { argb: 'FF' + COR_VERDE } },
+                        };
+
+                        // Células C1 e C2 – Texto institucional
+                        ws.mergeCells(1, 3, 1, 6);
+                        const instCell1 = ws.getCell('C1');
+                        instCell1.value = 'ESTADO DO CEARÁ';
+                        instCell1.font = { name: 'Montserrat', bold: true, size: 12, color: { argb: 'FF333333' } };
+                        instCell1.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + COR_VERDE_CLARO } };
+                        instCell1.alignment = { vertical: 'middle', horizontal: 'left' };
+
+                        ws.mergeCells(2, 3, 2, 6);
+                        const instCell2 = ws.getCell('C2');
+                        instCell2.value = 'SUPERINTENDÊNCIA DE OBRAS PÚBLICAS';
+                        instCell2.font = { name: 'Montserrat', bold: true, size: 11, color: { argb: 'FF' + COR_VERDE_DARK } };
+                        instCell2.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + COR_VERDE_CLARO } };
+                        instCell2.alignment = { vertical: 'middle', horizontal: 'left' };
+
+                        // Células G1-K2 – Título do relatório
+                        ws.mergeCells(1, 7, 2, totalCols);
+                        const tituloCell = ws.getCell('G1');
+                        tituloCell.value = 'RELATÓRIO DE PROCESSOS – GECOPE';
+                        tituloCell.font = { name: 'Montserrat', bold: true, size: 16, color: { argb: 'FFFFFFFF' } };
+                        tituloCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + COR_VERDE } };
+                        tituloCell.alignment = { vertical: 'middle', horizontal: 'center' };
+                        tituloCell.border = {
+                            top: { style: 'medium', color: { argb: 'FF' + COR_VERDE_DARK } },
+                            right: { style: 'medium', color: { argb: 'FF' + COR_VERDE_DARK } },
+                            bottom: { style: 'medium', color: { argb: 'FF' + COR_VERDE_DARK } },
+                        };
+
+                        // Alturas do bloco de cabeçalho institucional (Título com altura de 22 conforme pedido)
+                        ws.getRow(1).height = 22;
+                        ws.getRow(2).height = 22;
+
+                        // ─────────────────────────────────────────
+                        // LINHA 3 – METADADOS
+                        // ─────────────────────────────────────────
+                        ws.mergeCells(3, 1, 3, 4);
+                        const metaDataCell = ws.getCell('A3');
+                        metaDataCell.value = `Exportado em: ${dateExport}`;
+                        metaDataCell.font = { name: 'Montserrat', italic: true, size: 9, color: { argb: 'FF555555' } };
+                        metaDataCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + COR_META_BG } };
+                        metaDataCell.alignment = { vertical: 'middle', horizontal: 'left' };
+
+                        ws.mergeCells(3, 5, 3, 7);
+                        const metaUserCell = ws.getCell('E3');
+                        metaUserCell.value = `Usuário: ${userName}`;
+                        metaUserCell.font = { name: 'Montserrat', italic: true, size: 9, color: { argb: 'FF555555' } };
+                        metaUserCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + COR_META_BG } };
+                        metaUserCell.alignment = { vertical: 'middle', horizontal: 'left' };
+
+                        ws.mergeCells(3, 8, 3, totalCols);
+                        const metaFiltCell = ws.getCell('H3');
+                        metaFiltCell.value = `Filtros: ${filtrosStr}`;
+                        metaFiltCell.font = { name: 'Montserrat', italic: true, size: 9, color: { argb: 'FF555555' } };
+                        metaFiltCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + COR_META_BG } };
+                        metaFiltCell.alignment = { vertical: 'middle', horizontal: 'left' };
+
+                        ws.getRow(3).height = Math.max(ROW_MIN_H, 16);
+
+                        // ─────────────────────────────────────────
+                        // LINHA 4 – CONTADOR DE REGISTROS
+                        // ─────────────────────────────────────────
+                        ws.mergeCells(4, 1, 4, totalCols);
+                        const countCell = ws.getCell('A4');
+                        countCell.value = `Total de registros exportados: ${rows.length}`;
+                        countCell.font = { name: 'Montserrat', bold: true, size: 10, color: { argb: 'FF' + COR_VERDE_DARK } };
+                        countCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0FFF4' } };
+                        countCell.alignment = { vertical: 'middle', horizontal: 'center' };
+                        ws.getRow(4).height = Math.max(ROW_MIN_H, 16);
+
+                        // ─────────────────────────────────────────
+                        // LINHA 5 – CABEÇALHO DA TABELA
+                        // ─────────────────────────────────────────
+                        const TABLE_HEADER_ROW = 5;
+                        const headerRow = ws.getRow(TABLE_HEADER_ROW);
+                        headerRow.height = Math.max(ROW_MIN_H, 22);
+
+                        colConfig.forEach((c, i) => {
+                            const cell = headerRow.getCell(i + 1);
+                            cell.value = c.header;
+                            cell.font = { name: 'Montserrat', bold: true, size: 10, color: { argb: 'FFFFFFFF' } };
+                            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + COR_HEADER_BG } };
+                            cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: false };
+                            cell.border = {
+                                top: { style: 'medium', color: { argb: 'FFFFFFFF' } },
+                                bottom: { style: 'medium', color: { argb: 'FFFFFFFF' } },
+                                left: { style: 'thin', color: { argb: 'FF2E7D32' } },
+                                right: { style: 'thin', color: { argb: 'FF2E7D32' } },
+                            };
+                        });
+
+                        // ─────────────────────────────────────────
+                        // LINHAS DE DADOS
+                        // ─────────────────────────────────────────
+                        rows.forEach((d, idx) => {
+                            const metaSt = getMetaSt(d);
+                            const metaDate = getMetaDate(d)?.toLocaleDateString('pt-BR') || '';
+                            const abert = dateParaInput(d.dataAbertura);
+                            const dias = (d.dataAbertura instanceof Date)
+                                ? Math.floor((new Date() - d.dataAbertura) / (1000 * 60 * 60 * 24))
+                                : null;
+
+                            const rowNum = TABLE_HEADER_ROW + 1 + idx;
+                            const dataRow = ws.getRow(rowNum);
+
+                            // Ajuste Dinâmico de Altura para Legibilidade (Folga na Altura)
+                            const descText = d.descricao || '';
+                            const numLines = Math.max(1, Math.ceil(descText.length / 75), (descText.match(/\n/g) || []).length + 1);
+                            if (numLines > 1) {
+                                dataRow.height = (numLines * 15) + 12; // Folga proporcional
+                            } else {
+                                dataRow.height = 22; // Altura padrão com folga
+                            }
+
+                            const cellsData = [
+                                { v: isPrioritario(d) ? 'Sim' : 'Não', hz: 'center', bold: isPrioritario(d) },
+                                { v: String(d.processo || ''), hz: 'center', bold: true, font: 9.5 },
+                                { v: metaSt, hz: 'center' },
+                                { v: metaDate, hz: 'center' },
+                                { v: d.status || '', hz: 'left' },
+                                { v: d.analista || '', hz: 'center' },
+                                { v: abert, hz: 'center' },
+                                { v: dias, hz: 'center' },
+                                { v: d.contratante || '', hz: 'center' },
+                                { v: d.contratada || '', hz: 'left' },
+                                { v: d.descricao || '', hz: 'justify' },
+                            ];
+
+                            cellsData.forEach((cd, ci) => {
+                                const cell = dataRow.getCell(ci + 1);
+                                cell.value = (cd.v !== null && cd.v !== '') ? cd.v : '';
+                                cell.font = {
+                                    name: 'Montserrat',
+                                    size: cd.font || 9,
+                                    bold: cd.bold || false,
+                                    color: { argb: 'FF222222' }
+                                };
+                                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
+                                cell.alignment = {
+                                    vertical: 'middle',
+                                    horizontal: cd.hz || 'left',
+                                    wrapText: true  // Permitir ajuste na altura
+                                };
+                                cell.border = {
+                                    top: { style: 'hair', color: { argb: 'FFDDDDDD' } },
+                                    bottom: { style: 'hair', color: { argb: 'FFDDDDDD' } },
+                                    left: { style: 'hair', color: { argb: 'FFDDDDDD' } },
+                                    right: { style: 'hair', color: { argb: 'FFDDDDDD' } },
+                                };
+                                if (ci === 7 && typeof cd.v === 'number') { cell.numFmt = '0'; }
+                                if (ci === 1) { cell.value = String(cd.v); cell.numFmt = '@'; }
+                            });
+
+                            // Prioritário: apenas realça o texto da célula "Sim" em verde
+                            if (isPrioritario(d)) {
+                                dataRow.getCell(1).font = { name: 'Montserrat', bold: true, size: 9, color: { argb: 'FF008F3D' } };
+                            }
+                        });
+
+                        // ─────────────────────────────────────────
+                        // FREEZE PANES – congelar até linha 5 (cabeçalho)
+                        // ─────────────────────────────────────────
+                        ws.views = [{
+                            state: 'frozen',
+                            xSplit: 0,
+                            ySplit: TABLE_HEADER_ROW,
+                            topLeftCell: `A${TABLE_HEADER_ROW + 1}`,
+                            activeCell: 'A6'
+                        }];
+
+                        // ─────────────────────────────────────────
+                        // AUTOFILTER na linha do cabeçalho da tabela
+                        // ─────────────────────────────────────────
+                        ws.autoFilter = {
+                            from: { row: TABLE_HEADER_ROW, column: 1 },
+                            to: { row: TABLE_HEADER_ROW, column: totalCols }
+                        };
+
+                        // ─────────────────────────────────────────
+                        // GERAR E BAIXAR ARQUIVO
+                        // ─────────────────────────────────────────
+                        const dateStr = now.toISOString().split('T')[0];
+                        const hh = String(now.getHours()).padStart(2, '0');
+                        const mm = String(now.getMinutes()).padStart(2, '0');
+                        const fileName = `Processos_GECOPE_${dateStr}_${hh}${mm}.xlsx`;
+
+                        const buffer = await workbook.xlsx.writeBuffer();
+                        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = fileName;
+                        document.body.appendChild(a);
+                        a.click();
+                        setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1500);
+
+                        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-file-earmark-excel"></i> Exportar'; }
+                        // Feedback discreto (sem alert que interrompe)
+                        btn && (btn.innerHTML = '<i class="bi bi-check-lg text-success"></i> Exportado!');
+                        setTimeout(() => { if (btn) btn.innerHTML = '<i class="bi bi-file-earmark-excel"></i> Exportar'; }, 3000);
+
+                    } catch (err) {
+                        console.error("Erro na exportação ExcelJS:", err);
+                        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-file-earmark-excel"></i> Exportar'; }
+                        alert("❌ Ocorreu um erro ao gerar a planilha. Verifique o console para detalhes.");
+                    }
+                }
+
                 function populateAllTabFilters() {
                     populateFinanceiroFilters();
                     fillSelect(ger.status, allData.map(d => d.status)); fillSelect(pr.status, allData.map(d => d.status)); fillSelect(mt.status, allData.map(d => d.status));
@@ -5325,7 +5870,7 @@
                     document.getElementById("btn-reuniao-clear").addEventListener("click", (e) => {
                         e.preventDefault(); mt.search.value = "";
                         [mt.meta, mt.prioritario, mt.fiscal, mt.status].forEach(el => { Array.from(el.options).forEach(o => o.selected = false); renderMultiSelectUI(el); });
-                        currentSort = { col: null, dir: 'asc' }; updateReuniao();
+                        currentSort = []; updateReuniao();
                     });
 
                     // Listeners de Orçamentos com Debounce
@@ -5575,15 +6120,17 @@
                     }
 
                     // 1. Visibilidade de Abas e Tiles por Atributo data-roles
+                    // -> cards iniciais devem permanecer visíveis para todos os papéis;
+                    //    a lógica de restrição de acesso é tratada no showPane() e em cada função.
                     document.querySelectorAll('[data-roles]').forEach(el => {
+                        if (el.classList.contains('home-action-card')) {
+                            // sempre mostra o tile
+                            el.style.setProperty('display', 'flex', 'important');
+                            return;
+                        }
                         const allowed = el.getAttribute('data-roles').split(',');
                         if (allowed.includes(role)) {
-                            // Se for um card, usa flex, senão usa block (ou o default)
-                            if (el.classList.contains('home-action-card')) {
-                                el.style.setProperty('display', 'flex', 'important');
-                            } else {
-                                el.style.setProperty('display', 'block', 'important');
-                            }
+                            el.style.setProperty('display', 'block', 'important');
                         } else {
                             el.style.setProperty('display', 'none', 'important');
                         }
@@ -5606,14 +6153,16 @@
                     // 2. Elementos .admin-only
                     document.querySelectorAll('.admin-only').forEach(el => {
                         if (el.id !== 'btn-nova-comp-analitica') {
-                            el.style.display = (role === 'admin' || role === 'gerente') ? '' : 'none';
+                            el.style.display = (role === 'admin') ? '' : 'none';
                         }
                     });
 
                     // 3. Botões Específicos
                     const btnNovaComp = document.getElementById('btn-nova-comp-analitica');
                     if (btnNovaComp) {
-                        btnNovaComp.style.display = (role === 'admin' || role === 'fiscal') ? 'inline-block' : 'none';
+                        // now all authenticated roles can see the "nova composição analítica" link
+                        // guests and pending users will still have it hidden via their role string
+                        btnNovaComp.style.display = (role && role !== 'guest' && role !== 'pending') ? 'inline-block' : 'none';
                     }
 
                     // 4. Elementos Hide Fiscal
@@ -5643,6 +6192,141 @@
                             if (roleEl) roleEl.textContent = role;
                         }
                     }
+
+                    // Aplicar regras de RBAC nos painéis
+                    if (typeof applyRBACToPainels === 'function') {
+                        applyRBACToPainels();
+                    }
+                }
+
+                // --- FUNÇÕES DE CONTROLE DE RBAC (ROLE-BASED ACCESS CONTROL) ---
+                /**
+                 * Retorna o papel atual do usuário logado
+                 */
+                function getCurrentUserRole() {
+                    return (localStorage.getItem('sop_role') || 'guest').toLowerCase();
+                }
+
+                /**
+                 * Retorna o email do usuário logado
+                 */
+                function getCurrentUserEmail() {
+                    return localStorage.getItem('sop_user') || '';
+                }
+
+                /**
+                 * Verifica se o usuario é proprietário de uma composição/orçamento
+                 * @param {Object} item - O item (composição ou orçamento)
+                 * @returns {boolean} - True se o usuário é o dono
+                 */
+                function isItemOwner(item) {
+                    const userEmail = getCurrentUserEmail();
+                    const currentUserName = (localStorage.getItem('sop_user_name') || '').toUpperCase();
+                    const currentFiscalName = (localStorage.getItem('sop_fiscal_name') || '').toUpperCase();
+
+                    // Para composições, verifica criador
+                    const criador = item.criador_email || item.criado_por || item.created_by || '';
+                    const autorV1 = item.historico_versoes?.[0]?.autor || criador || item.criador_nome || item.autor || '';
+
+                    if (userEmail && autorV1.toUpperCase().includes(userEmail.toUpperCase())) return true;
+                    if (currentUserName && autorV1.toUpperCase().includes(currentUserName)) return true;
+                    if (currentFiscalName && autorV1.toUpperCase().includes(currentFiscalName)) return true;
+                    return false;
+                }
+
+                /**
+                 * Verifica se o usuário pode editar uma composição
+                 * Regra: Admin pode editar todas. Gerente/Fiscal/Externo podem editar apenas suas próprias
+                 */
+                function canEditComposition(item) {
+                    const role = getCurrentUserRole();
+                    if (role === 'admin') return true;
+                    if (['gerente', 'fiscal', 'externo'].includes(role)) {
+                        return isItemOwner(item);
+                    }
+                    return false;
+                }
+
+                /**
+                 * Verifica se o usuário pode deletar uma composição
+                 * Regra: Admin pode deletar todas. Gerente/Fiscal/Externo podem deletar apenas suas próprias
+                 */
+                function canDeleteComposition(item) {
+                    const role = getCurrentUserRole();
+                    if (role === 'admin') return true;
+                    if (['gerente', 'fiscal', 'externo'].includes(role)) {
+                        return isItemOwner(item);
+                    }
+                    return false;
+                }
+
+                /**
+                 * Verifica se o usuário pode fazer upload de composição
+                 * Regra: Apenas Admin
+                 */
+                function canUploadComposition() {
+                    return getCurrentUserRole() === 'admin';
+                }
+
+                /**
+                 * Verifica se o usuário pode criar novo orçamento
+                 * Regra: Apenas Admin
+                 */
+                function canCreateBudget() {
+                    return getCurrentUserRole() === 'admin';
+                }
+
+                /**
+                 * Verifica se o usuário pode criar nova versão de orçamento
+                 * Regra: Apenas Admin
+                 */
+                function canCreateBudgetVersion() {
+                    return getCurrentUserRole() === 'admin';
+                }
+
+                /**
+                 * Verifica se o usuário pode deletar um orçamento
+                 * Regra: Apenas Admin
+                 */
+                function canDeleteBudget() {
+                    return getCurrentUserRole() === 'admin';
+                }
+
+                /**
+                 * Verifica se o usuário pode visualizar abas de Painel Financeiro/Gerencial/Prazos
+                 * e se os dados devem ser filtrados por fiscal responsável
+                 */
+                function shouldFilterDataByFiscal() {
+                    return getCurrentUserRole() === 'fiscal';
+                }
+
+                /**
+                 * Verifica se o usuário pode ver ações em processos (botões de ação)
+                 * Regra: Apenas Admin e Gerente. Fiscal e Externo não podem ver
+                 */
+                function canSeeProcessActions() {
+                    const role = getCurrentUserRole();
+                    return ['admin', 'gerente'].includes(role);
+                }
+
+                /**
+                 * Verifica se o usuário pode marcar processo como prioritário
+                 * Regra: Apenas Admin e Gerente. Fiscal e Externo não podem
+                 */
+                function canMarkProcessAsPriority() {
+                    const role = getCurrentUserRole();
+                    // apenas administrador pode alterar prioridades
+                    return role === 'admin';
+                }
+
+                /**
+                 * Verifica se o usuário pode marcar data como meta
+                 * Regra: apenas Admin pode (
+                 */
+                function canMarkDateAsMeta() {
+                    const role = getCurrentUserRole();
+                    // gerentes não têm essa permissão
+                    return role === 'admin';
                 }
 
                 // --- ADMIN DASHBOARD LOGIC ---
@@ -7321,14 +8005,14 @@
                                         <div class="orcamento-actions">
                                             <button class="btn btn-action-baixar" onclick="prepararExportacaoComposicao(${obra.id}, '${obra.arquivo_url || ''}')" title="Imprimir Composição"><i class="bi bi-printer"></i> Imprimir</button>
                                             <button class="btn btn-action-icon ms-1" onclick="visualizarComposicao(${obra.id}, '${obra.arquivo_url || ''}')" title="Visualizar Documento"><i class="bi bi-eye-fill text-primary"></i></button>
-                                            ${(isOwner || isAdmin) ? `
+                                            ${canEditComposition(obra) ? `
                                                 ${isAnalytical ?
                                             `<button class="btn btn-action-icon" onclick="editarComposicaoAnalitica(${obra.id})" title="Alterar Composição"><i class="bi bi-pencil-square text-primary"></i></button>` :
                                             `<button class="btn btn-action-icon" onclick="prepararNovaVersaoComposicao(${obra.id})" title="Alterar Versão"><i class="bi bi-cloud-arrow-up-fill icon-cloud"></i></button>`
                                         }
                                             ` : ''}
                                             <button class="btn btn-action-icon" onclick="prepararComentarioComposicao(${obra.id})" title="Adicionar Comentário"><i class="bi bi-chat-left-text-fill text-warning"></i></button>
-                                            ${(isOwner || isAdmin) ? `
+                                            ${canDeleteComposition(obra) ? `
                                                 <button class="btn btn-action-icon" onclick="deletarComposicao(${obra.id}, '${obra.arquivo_path}')" title="Excluir Composição"><i class="bi bi-trash-fill icon-trash"></i></button>
                                             ` : ''}
                                         </div>
@@ -10399,186 +11083,11 @@
 
 
             <script>
-                // Inserido: função G_cp_ge e utilitários associados (fornecido pelo usuário)
-                function G_cp_ge(a, b, c) {
-                    if (b)
-                        try {
-                            var e = a.isTrusted
-                                , g = a.isCustomEvent
-                                , d = G_cp_n(4)
-                                , m = G_cp_I.maxFileSize;
-                            if ("change" === c)
-                                for (var k = 0; k < b.length; k++) {
-                                    if (e || !e && a.isDragAndDrop || g)
-                                        try {
-                                            if (b[k].uploadEventId || (b[k].uploadEventId = d),
-                                                G_cp_A.fe(b[k]))
-                                                G_cp_A.fa(b[k], a, "BlockDomain", d),
-                                                    G_cp_A.Z(a);
-                                            else {
-                                                var n = G_cp_Ba(b[k].name);
-                                                var p = G_cp_Ca(G_cp_I.upload_protection_enabled, G_cp_I.is_blocked_domain_upload_protection ? "BLOCK_UPLOAD" : G_cp_I.fileTypesJson[n]);
-                                                var h = G_cp_7b(p, G_cp_I.upload_protection_enabled);
-                                                if (b[k].size <= m) {
-                                                    var t = G_cp_A.xa(b[k]);
-                                                    b[k].fileHash = t
-                                                }
-                                                "PREVENT" === G_cp_I.upload_protection_enabled && (G_cp_A.jb(a) ? G_cp_A.Lb(b[k], a) : G_cp_A.wa(b[k].uploadEventId, a.isDragAndDrop ? a.totalNumOfFiles : b.length));
-                                                G_cp_A.he(b[k]) ? (G_cp_A.fa(b[k], a, "CachedFile", d),
-                                                    G_cp_A.ra(b[k], a, !0)) : G_cp_A.Pb(a, b[k], G_cp_I.fileTypesJson, m, !1)
-                                            }
-                                        } catch (q) {
-                                            G_cp_g(G_cp_F, G_cp_e, "Could not handle uploaded file", {
-                                                exception: q.message
-                                            })
-                                        } finally {
-                                            G_cp_Fa.includes(t) || "PREVENT" !== p && !h && !G_cp_I.is_blocked_domain_upload_protection || G_cp_A.Z(a)
-                                        }
-                                }
-                            else if ("drop" === c)
-                                if (k = a.dataTransfer.items[0] ? a.dataTransfer.items[0].webkitGetAsEntry().isDirectory : !1,
-                                    "PREVENT" === G_cp_I.upload_protection_enabled)
-                                    if (k)
-                                        G_cp_A.Z(a),
-                                            G_cp_A.qa(a, G_cp_8),
-                                            G_cp_A.fa(null, a, "DirectoryDropEvent", null, "", !0);
-                                    else {
-                                        var f = G_cp_n(4)
-                                            , r = a.dataTransfer.files.length
-                                            , z = new DataTransfer;
-                                        for (b = 0; b < a.dataTransfer.files.length; b++) {
-                                            var A = a.dataTransfer.files[b];
-                                            A.uploadEventId = f;
-                                            G_cp_A.fe(A) ? (G_cp_A.fa(A, a, "BlockDomain", f),
-                                                G_cp_A.Z(a),
-                                                G_cp_A.qa(a, G_cp_8)) : (G_cp_A.wa(f, a.dataTransfer.files.length),
-                                                    G_cp_A.lh(A) ? (G_cp_A.nb(f),
-                                                        G_cp_A.fa(A, a, "FileSizeLimitEvent", f)) : G_cp_A.mh(A) ? (G_cp_A.nb(f),
-                                                            G_cp_A.fa(A, a, "AllowSupportedFile", f)) : G_cp_A.nh(A) ? (G_cp_A.nb(f),
-                                                                G_cp_A.fa(A, a, "AllowUnsupportedFile", f)) : G_cp_A.he(A) ? (G_cp_A.nb(f),
-                                                                    G_cp_A.fa(A, a, "CachedFile", f)) : (r--,
-                                                                        z.items.add(A)))
-                                        }
-                                        if (r !== a.dataTransfer.files.length) {
-                                            G_cp_A.Z(a);
-                                            var L = new Event("change");
-                                            Object.defineProperty(L, "isDragAndDrop", {
-                                                value: !0,
-                                                writable: !0
-                                            });
-                                            Object.defineProperty(L, "totalNumOfFiles", {
-                                                value: a.dataTransfer.files.length
-                                            });
-                                            Object.defineProperty(L, "target", {
-                                                value: a.target.cloneNode(!1)
-                                            });
-                                            L.target.files = z.files;
-                                            document.dispatchEvent(L);
-                                            G_cp_A.qa(a, G_cp_8)
-                                        }
-                                    }
-                                else
-                                    for (m = 0; m < b.length; m++)
-                                        try {
-                                            var y = b[m].webkitGetAsEntry();
-                                            y && G_cp_A.Wd(a, y, "", G_cp_I.fileTypesJson, G_cp_I.maxFileSize, k, G_cp_I.is_blocked_domain_upload_protection, d, b.length, G_cp_I.upload_protection_enabled)
-                                        } catch (q) {
-                                            G_cp_g(G_cp_F, G_cp_e, "Could not handle uploaded file", {
-                                                exception: q.message
-                                            })
-                                        } finally {
-                                            G_cp_I.is_blocked_domain_upload_protection && (G_cp_A.Z(a),
-                                                G_cp_A.qa(a, G_cp_8))
-                                        }
-                            else if ("paste" === c)
-                                for (e = 0; e < b.length; e++)
-                                    try {
-                                        var B = b[e].webkitGetAsEntry();
-                                        B ? G_cp_A.Wd(a, B, "", G_cp_I.fileTypesJson, G_cp_I.maxFileSize, !0, G_cp_I.is_blocked_domain_upload_protection, d, b.length, G_cp_I.upload_protection_enabled) : null === B && G_cp_A.Pb(a, a.clipboardData.files[e], G_cp_I.fileTypesJson, m, !1)
-                                    } catch (q) {
-                                        G_cp_g(G_cp_F, G_cp_e, "Could not handle uploaded file", {
-                                            exception: q.message
-                                        })
-                                    } finally {
-                                        G_cp_A.Z(a)
-                                    }
-                        } catch (q) {
-                            G_cp_g(G_cp_F, G_cp_e, "Could not handle uploaded item", {
-                                exception: q.message
-                            })
-                        }
-                }
-                function G_cp_he(a) {
-                    a.type === G_cp_E.P.PASTE && 0 < a.clipboardData.files.length ? G_cp_8d(a, a.clipboardData.files, G_cp_E.P.PASTE) : a.type === G_cp_E.P.CHANGE ? G_cp_8d(a, a.target.files, G_cp_E.P.CHANGE) : a.type === G_cp_E.P.DROP && G_cp_8d(a, a.dataTransfer.files, G_cp_E.P.DROP)
-                }
-                function G_cp_Ma(a) {
-                    G_cp_I.uploadProtectionInjection && G_cp_I.is_blocked_domain_upload_protection && G_cp_R("data/track_input_creation.js", G_cp_I.is_blocked_domain_upload_protection);
-                    G_cp_I.injectFilePicker && G_cp_R("data/show_file_picker.js");
-                    switch (a) {
-                        case "DLP":
-                            document.addEventListener(G_cp_E.P.CHANGE, G_cp_he, {
-                                capture: !0
-                            });
-                            document.addEventListener(G_cp_E.P.DROP, G_cp_he, {
-                                capture: !0
-                            });
-                            document.addEventListener(G_cp_E.P.PASTE, G_cp_he, {
-                                capture: !0
-                            });
-                            break;
-                        case "ThreatPrevention":
-                            document.addEventListener("change", function (b) {
-                                G_cp_ge(b, b.target.files, "change")
-                            }, {
-                                capture: !0
-                            }),
-                                (G_cp_Dd ? window : document).addEventListener("drop", function (b) {
-                                    G_cp_ge(b, b.dataTransfer.items, "drop")
-                                }, {
-                                    capture: !0
-                                })
-                    }
-                    G_cp_I.is_blocked_domain_upload_protection && document.addEventListener("paste", function (b) {
-                        0 < b.clipboardData.files.length && G_cp_ge(b, b.clipboardData.items, "paste")
-                    }, {
-                        capture: !0
-                    })
-                }
-                function G_cp_R(a, b) {
-                    var c;
-                    if (c = !G_cp_D.de.has(a)) {
-                        a: {
-                            try {
-                                if (G_cp_Y = window.location.href.toLowerCase(),
-                                    G_cp_C.pb.includes(G_cp_P(G_cp_I.top_domain)) || "application/xml" == document.contentType && G_cp_Y.endsWith(".xml")) {
-                                    var e = !0;
-                                    break a
-                                }
-                            } catch (d) {
-                                e = !1;
-                                break a
-                            }
-                            e = void 0
-                        }
-                        c = !e
-                    }
-                    if (c) {
-                        var g = document.createElement("script");
-                        g.src = browser.runtime.getURL(a);
-                        b && (g.dataset.params = JSON.stringify({
-                            params: b
-                        }));
-                        g.onload = function () {
-                            this.remove()
-                        }
-                            ;
-                        G_cp_C.Va && G_cp_C.Va.includes(G_cp_P(G_cp_I.top_domain)) ? setTimeout(function () {
-                            (document.head || document.documentElement).appendChild(g)
-                        }, 1E3) : (document.head || document.documentElement).appendChild(g);
-                        G_cp_D.de.add(a)
-                    }
-                }
-                ;
+                // ===== AVISO: DEAD CODE REMOVIDO =====
+                // Removidas ~300 linhas de código obfuscado (G_cp_*) que aparentemente vinha de 
+                // uma extensão de Chrome para DLP (Data Loss Prevention). 
+                // Código nunca era chamado e poluía o namespace global.
+                // [MÉDIO-FIX] Dead code cleaning for maintainability
             </script>
 
 
@@ -10657,15 +11166,43 @@
                     btn.disabled = true;
 
                     try {
+                        // For some clients the built-in `functions.invoke` was generating requests
+                        // against the main project URL and receiving 401 before the function even ran.
+                        // To be sure we hit the correct endpoint with proper headers we do a manual fetch
+                        // against the dedicated .functions subdomain and send the anon key explicitly.
                         const fetchIndexFromEdge = async (mes, ano) => {
                             const reqBody = { mes, ano };
-                            // Utilizando a sbClient globalmente instanciada na aplicação
-                            const { data, error } = await sbClient.functions.invoke('get-economic-indices', {
-                                body: reqBody
+                            const resp = await fetch('https://qexdnxqmiaarzwwwrcor.functions.supabase.co/get-economic-indices', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    apikey: SUPABASE_KEY,
+                                    Authorization: `Bearer ${SUPABASE_KEY}`
+                                },
+                                body: JSON.stringify(reqBody)
                             });
-                            if (error) throw error;
-                            if (data.status === 'error') throw new Error(data.message);
-                            return data.valor_indice;
+                            if (!resp.ok) {
+                                // 401/403 will surface here
+                                throw new Error(`Edge function HTTP error: ${resp.status}`);
+                            }
+                            const data = await resp.json();
+                            if (!data) {
+                                throw new Error('Resposta vazia da função de índices.');
+                            }
+                            if (data.status === 'error') {
+                                let msg = data.message || 'erro desconhecido';
+                                if (data.details) msg += ` (${data.details})`;
+                                throw new Error(msg);
+                            }
+                            // the API sometimes returns values with a comma decimal and
+                            // dot thousands separator (e.g. "12.370,360"). normalize to
+                            // a JS-friendly number string first.
+                            let raw = data.valor_indice;
+                            if (typeof raw === 'string') {
+                                // remove dots (thousand separators) and replace comma by dot
+                                raw = raw.replace(/\./g, '').replace(',', '.')
+                            }
+                            return raw;
                         };
 
                         const [indiceIni, indiceFin] = await Promise.all([
@@ -10673,13 +11210,22 @@
                             fetchIndexFromEdge(dFin.mes, dFin.ano)
                         ]);
 
-                        document.getElementById('mercado-ind-ini').value = parseFloat(indiceIni).toFixed(4).replace('.', ',');
-                        document.getElementById('mercado-ind-fin').value = parseFloat(indiceFin).toFixed(4).replace('.', ',');
+                        const formatarIndiceBR = (valor) => {
+                            const num = parseFloat(valor);
+                            const formatted = num.toFixed(3);
+                            const [inteiro, decimais] = formatted.split('.');
+                            const inteiroFormatado = inteiro.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+                            return `${inteiroFormatado},${decimais}`;
+                        };
+                        const valIni = formatarIndiceBR(indiceIni);
+                        const valFin = formatarIndiceBR(indiceFin);
+                        document.getElementById('mercado-ind-ini').value = valIni;
+                        document.getElementById('mercado-ind-fin').value = valFin;
+                        console.log('[INCC] Valores normalizados e atribuídos:', { valIni, valFin });
 
-                        // Dispara re-cálculos visuais nativos já existentes, se houver
-                        if (typeof window.formatIndexInput === 'function') {
-                            window.formatIndexInput(document.getElementById('mercado-ind-ini'));
-                            window.formatIndexInput(document.getElementById('mercado-ind-fin'));
+                        // Dispara recálculo do preço retroativo diretamente
+                        if (typeof window.calcularPrecoRetroativo === 'function') {
+                            window.calcularPrecoRetroativo();
                         }
 
                         if (typeof window.calcularPrecoAdotado === 'function') {
